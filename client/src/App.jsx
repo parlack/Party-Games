@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import io from 'socket.io-client'
 
 // Contraseña del host
 const HOST_PASSWORD = "fiesta2025"
+
+// Conexión Socket.IO
+const socket = io('http://localhost:3001')
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home')
@@ -13,63 +17,117 @@ function App() {
   const [currentGame, setCurrentGame] = useState(null)
   const [gameState, setGameState] = useState('waiting') // waiting, playing, finished
   const [gameData, setGameData] = useState({})
+  const [socketConnected, setSocketConnected] = useState(false)
+  const [playerId, setPlayerId] = useState(null)
   
-  // Estado de usuarios conectados (sincronizado entre ventanas)
-  const [connectedUsers, setConnectedUsers] = useState(() => {
-    const saved = localStorage.getItem('partyGames_connectedUsers')
-    return saved ? JSON.parse(saved) : []
-  })
+  // Estado de usuarios conectados (desde Socket.IO)
+  const [connectedUsers, setConnectedUsers] = useState([])
 
-  // Ranking de jugadores (sincronizado entre ventanas)
-  const [players, setPlayers] = useState(() => {
-    const saved = localStorage.getItem('partyGames_players')
-    return saved ? JSON.parse(saved) : []
-  })
+  // Ranking de jugadores (desde Socket.IO)
+  const [players, setPlayers] = useState([])
 
-  // Función para actualizar usuarios conectados y sincronizar
-  const updateConnectedUsers = (newUsers) => {
-    setConnectedUsers(newUsers)
-    localStorage.setItem('partyGames_connectedUsers', JSON.stringify(newUsers))
-    // Disparar evento para sincronizar otras ventanas
-    window.dispatchEvent(new CustomEvent('partyGames_usersUpdated', { detail: newUsers }))
-  }
-
-  // Función para actualizar ranking y sincronizar
-  const updatePlayers = (newPlayers) => {
-    setPlayers(newPlayers)
-    localStorage.setItem('partyGames_players', JSON.stringify(newPlayers))
-    // Disparar evento para sincronizar otras ventanas
-    window.dispatchEvent(new CustomEvent('partyGames_playersUpdated', { detail: newPlayers }))
-  }
-
-  // Escuchar cambios de otras ventanas
+  // Configurar Socket.IO
   useEffect(() => {
-    const handleUsersUpdate = (event) => {
-      setConnectedUsers(event.detail)
-    }
+    console.log('🔌 Configurando Socket.IO...')
     
-    const handlePlayersUpdate = (event) => {
-      setPlayers(event.detail)
-    }
+    // Eventos de conexión
+    socket.on('connect', () => {
+      console.log('✅ Conectado al servidor Socket.IO:', socket.id)
+      setSocketConnected(true)
+      setPlayerId(socket.id)
+    })
 
-    const handleStorageChange = (event) => {
-      if (event.key === 'partyGames_connectedUsers') {
-        const newUsers = event.newValue ? JSON.parse(event.newValue) : []
-        setConnectedUsers(newUsers)
-      } else if (event.key === 'partyGames_players') {
-        const newPlayers = event.newValue ? JSON.parse(event.newValue) : []
-        setPlayers(newPlayers)
+    socket.on('disconnect', () => {
+      console.log('❌ Desconectado del servidor Socket.IO')
+      setSocketConnected(false)
+      setPlayerId(null)
+    })
+
+    // Eventos de jugadores
+    socket.on('player-registered', (player) => {
+      console.log('👤 Jugador registrado:', player)
+    })
+
+    socket.on('player-joined', (player) => {
+      console.log('➕ Jugador se unió:', player)
+      setConnectedUsers(prev => {
+        const exists = prev.find(u => u.id === player.id)
+        if (!exists) {
+          return [...prev, {
+            id: player.id,
+            name: player.name,
+            isHost: player.isAdmin,
+            connected: player.isOnline
+          }]
+        }
+        return prev
+      })
+    })
+
+    socket.on('player-disconnected', (player) => {
+      console.log('➖ Jugador desconectado:', player)
+      setConnectedUsers(prev => prev.filter(u => u.id !== player.id))
+    })
+
+    // Eventos de ranking
+    socket.on('rankings-updated', (rankings) => {
+      console.log('🏆 Rankings actualizados:', rankings)
+      setPlayers(rankings)
+    })
+
+    // Eventos de juego
+    socket.on('game-created', (game) => {
+      console.log('🎮 Juego creado:', game)
+      setCurrentGame(game)
+      setGameState('waiting')
+    })
+
+    socket.on('game-started', (game) => {
+      console.log('🚀 Juego iniciado:', game)
+      setCurrentGame(game)
+      setGameState('playing')
+      setCurrentPage('game')
+    })
+
+    socket.on('game-ended', (game) => {
+      console.log('🏁 Juego terminado:', game)
+      setGameState('finished')
+      setCurrentPage('lobby')
+    })
+
+    socket.on('points-awarded', (data) => {
+      console.log('🎯 Puntos otorgados:', data)
+      alert(`¡Ganaste ${data.points} puntos! Total: ${data.totalScore}`)
+    })
+
+    socket.on('current-state', (state) => {
+      console.log('📊 Estado actual del servidor:', state)
+      setPlayers(state.rankings)
+      if (state.currentGame) {
+        setCurrentGame(state.currentGame)
+        setGameState(state.currentGame.status)
       }
-    }
+    })
 
-    window.addEventListener('partyGames_usersUpdated', handleUsersUpdate)
-    window.addEventListener('partyGames_playersUpdated', handlePlayersUpdate)
-    window.addEventListener('storage', handleStorageChange)
+    socket.on('error', (error) => {
+      console.error('❌ Error del servidor:', error)
+      alert(`Error: ${error}`)
+    })
 
+    // Cleanup
     return () => {
-      window.removeEventListener('partyGames_usersUpdated', handleUsersUpdate)
-      window.removeEventListener('partyGames_playersUpdated', handlePlayersUpdate)
-      window.removeEventListener('storage', handleStorageChange)
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('player-registered')
+      socket.off('player-joined')
+      socket.off('player-disconnected')
+      socket.off('rankings-updated')
+      socket.off('game-created')
+      socket.off('game-started')
+      socket.off('game-ended')
+      socket.off('points-awarded')
+      socket.off('current-state')
+      socket.off('error')
     }
   }, [])
 
@@ -164,6 +222,20 @@ function App() {
     }
   }
 
+  // Función para registrar jugador en el servidor
+  const registerPlayer = () => {
+    if (!socketConnected) {
+      alert('No hay conexión con el servidor')
+      return
+    }
+    
+    console.log('📝 Registrando jugador:', playerName, 'Host:', isHost)
+    socket.emit('register-player', {
+      name: playerName,
+      isAdmin: isHost
+    })
+  }
+
   // Función para iniciar juego (solo host)
   const startGame = (gameType) => {
     if (!isHost) {
@@ -171,9 +243,13 @@ function App() {
       return
     }
     
-    setCurrentGame(gameType)
-    setGameState('playing')
-    setCurrentPage('game')
+    if (!socketConnected) {
+      alert('No hay conexión con el servidor')
+      return
+    }
+    
+    console.log('🎮 Iniciando juego:', gameType)
+    socket.emit('create-game', { type: gameType })
     
     // Configurar datos del juego según el tipo
     switch (gameType) {
@@ -205,6 +281,66 @@ function App() {
         break
     }
   }
+
+  // Función para unirse al juego
+  const joinGame = () => {
+    if (!socketConnected) {
+      alert('No hay conexión con el servidor')
+      return
+    }
+    
+    console.log('🎯 Uniéndose al juego')
+    socket.emit('join-game')
+  }
+
+  // Función para iniciar el juego (solo host)
+  const startGameSession = () => {
+    if (!isHost) {
+      alert('Solo el host puede iniciar la sesión de juego')
+      return
+    }
+    
+    if (!socketConnected) {
+      alert('No hay conexión con el servidor')
+      return
+    }
+    
+    console.log('🚀 Iniciando sesión de juego')
+    socket.emit('start-game')
+  }
+
+  // Panel de debugging
+  const DebugPanel = () => (
+    <div style={{
+      position: 'fixed',
+      top: '10px',
+      left: '10px',
+      background: 'rgba(0, 0, 0, 0.8)',
+      color: 'white',
+      padding: '10px',
+      borderRadius: '5px',
+      fontSize: '12px',
+      zIndex: 1001,
+      maxWidth: '300px'
+    }}>
+      <div><strong>🔍 DEBUG INFO:</strong></div>
+      <div>👥 Usuarios conectados: {connectedUsers.length}</div>
+      <div>📊 Jugadores en ranking: {players.length}</div>
+      <div>🏠 Página actual: {currentPage}</div>
+      <div>👤 Mi nombre: {playerName}</div>
+      <div>👑 Soy host: {isHost ? 'Sí' : 'No'}</div>
+      <div>🔌 Socket conectado: {socketConnected ? 'Sí' : 'No'}</div>
+      <div>🆔 Socket ID: {playerId || 'N/A'}</div>
+      <div>🎮 Juego actual: {currentGame?.type || 'Ninguno'}</div>
+      <div>🎯 Estado juego: {gameState}</div>
+      <div style={{ marginTop: '5px', fontSize: '10px' }}>
+        <strong>Lista usuarios:</strong>
+        {connectedUsers.map(u => (
+          <div key={u.id}>• {u.name} {u.isHost ? '👑' : ''}</div>
+        ))}
+      </div>
+    </div>
+  )
 
   // Componente para mostrar usuarios conectados (solo en lobby y juegos)
   const ConnectedUsersPanel = ({ showInPage = true }) => {
@@ -288,6 +424,17 @@ function App() {
           ¡Únete a la diversión con tus amigos!
         </p>
         
+        {!socketConnected && (
+          <div style={{ 
+            background: 'rgba(255, 0, 0, 0.2)', 
+            padding: '10px', 
+            borderRadius: '10px',
+            marginBottom: '20px'
+          }}>
+            ⚠️ No hay conexión con el servidor. Asegúrate de que el servidor esté corriendo.
+          </div>
+        )}
+        
         <input
           type="text"
           placeholder="Ingresa tu nombre"
@@ -330,31 +477,13 @@ function App() {
           <button
             style={styles.button}
             onClick={() => {
-              if (playerName.trim()) {
-                // Agregar usuario a la lista
-                const newUser = {
-                  id: Date.now(),
-                  name: playerName,
-                  isHost: isHost,
-                  connected: true
-                }
-                updateConnectedUsers([...connectedUsers, newUser])
-                
-                // Agregar al ranking si no existe
-                const existingPlayer = players.find(p => p.name === playerName)
-                if (!existingPlayer) {
-                  const newPlayer = {
-                    id: Date.now(),
-                    name: playerName,
-                    score: 0,
-                    gamesPlayed: 0
-                  }
-                  updatePlayers([...players, newPlayer])
-                }
-                
+              if (playerName.trim() && socketConnected) {
+                registerPlayer()
                 setCurrentPage('lobby')
-              } else {
+              } else if (!playerName.trim()) {
                 alert('Por favor ingresa tu nombre')
+              } else {
+                alert('No hay conexión con el servidor')
               }
             }}
           >
@@ -383,18 +512,12 @@ function App() {
               marginTop: '10px'
             }}
             onClick={() => {
-              if (window.confirm('¿Estás seguro de que quieres limpiar todos los datos? Esto eliminará todos los usuarios y puntuaciones.')) {
-                localStorage.removeItem('partyGames_connectedUsers')
-                localStorage.removeItem('partyGames_players')
-                updateConnectedUsers([])
-                updatePlayers([])
-                setPlayerName('')
-                setIsHost(false)
-                alert('¡Datos limpiados! La aplicación está lista para una nueva fiesta.')
+              if (window.confirm('¿Estás seguro de que quieres reiniciar la aplicación?')) {
+                window.location.reload()
               }
             }}
           >
-            🗑️ Limpiar Datos
+            🔄 Reiniciar App
           </button>
         </div>
       </div>
@@ -630,20 +753,19 @@ function App() {
         setShowResult(false)
         setTimeLeft(30)
       } else {
-        // Fin del juego - agregar puntos
+        // Fin del juego - enviar puntos al servidor
         const correctAnswers = gameData.userAnswers?.filter(answer => answer.correct).length || 0
-        const points = correctAnswers * 25 // 25 puntos por respuesta correcta
         
-        const updatedPlayers = players.map(player => 
-          player.name === playerName 
-            ? { ...player, score: player.score + points, gamesPlayed: player.gamesPlayed + 1 }
-            : player
-        )
-        updatePlayers(updatedPlayers)
+        // Enviar respuesta final al servidor
+        socket.emit('game-answer', {
+          type: 'quiz_final',
+          correctAnswers: correctAnswers,
+          totalQuestions: gameData.questions.length
+        })
         
         setGameState('finished')
         setCurrentPage('lobby')
-        alert(`¡Quiz completado! 🎉\nRespuestas correctas: ${correctAnswers}\nPuntos ganados: ${points}`)
+        alert(`¡Quiz completado! 🎉\nRespuestas correctas: ${correctAnswers}`)
       }
     }
 
@@ -837,21 +959,12 @@ function App() {
               <button
                 style={styles.button}
                 onClick={() => {
-                  // Agregar puntos basados en el tiempo de reacción
-                  let points = 0
-                  if (reactionTime < 200) points = 100
-                  else if (reactionTime < 300) points = 75
-                  else if (reactionTime < 400) points = 50
-                  else points = 25
+                  // Enviar tiempo de reacción al servidor
+                  socket.emit('game-answer', {
+                    type: 'reflex',
+                    reactionTime: reactionTime
+                  })
                   
-                  const updatedPlayers = players.map(player => 
-                    player.name === playerName 
-                      ? { ...player, score: player.score + points, gamesPlayed: player.gamesPlayed + 1 }
-                      : player
-                  )
-                  updatePlayers(updatedPlayers)
-                  
-                  alert(`¡Puntos ganados: ${points}! 🎉`)
                   setCurrentGame(null)
                   setGameState('waiting')
                   setCurrentPage('lobby')
@@ -925,17 +1038,14 @@ function App() {
         setLevel(1)
         setTimeout(generateSequence, 1000)
       } else if (newUserSequence.length === sequence.length) {
-        // Secuencia completa correcta
-        const points = level * 15 // 15 puntos por nivel
+        // Secuencia completa correcta - enviar al servidor
+        socket.emit('game-answer', {
+          type: 'memory',
+          level: level,
+          correct: true
+        })
         
-        const updatedPlayers = players.map(player => 
-          player.name === playerName 
-            ? { ...player, score: player.score + points, gamesPlayed: player.gamesPlayed + 1 }
-            : player
-        )
-        updatePlayers(updatedPlayers)
-        
-        alert(`🎉 ¡Nivel ${level} completado!\nPuntos ganados: ${points}`)
+        alert(`🎉 ¡Nivel ${level} completado!`)
         setLevel(level + 1)
         setUserSequence([])
         setTimeout(generateSequence, 1500)
@@ -1127,6 +1237,7 @@ function App() {
           }
         `}
       </style>
+      <DebugPanel />
       {renderCurrentPage()}
     </>
   )

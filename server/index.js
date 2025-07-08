@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "http://localhost:5174"],
     methods: ["GET", "POST"]
   }
 });
@@ -198,19 +198,18 @@ io.on('connection', (socket) => {
     // Procesar respuesta según el tipo de juego
     let points = 0;
     
-    if (gameState.currentGame.type === 'quiz') {
-      const { questionIndex, answer, timeLeft } = data;
-      const question = gameState.currentGame.config.questions[questionIndex];
-      
-      if (question && answer === question.correct) {
-        points = Math.max(10, Math.floor(timeLeft / 2)); // Más puntos por responder rápido
-      }
-    } else if (gameState.currentGame.type === 'reflex') {
+    if (data.type === 'quiz_final') {
+      const { correctAnswers, totalQuestions } = data;
+      points = correctAnswers * 25; // 25 puntos por respuesta correcta
+    } else if (data.type === 'reflex') {
       const { reactionTime } = data;
-      points = Math.max(5, Math.floor(50 - (reactionTime / 100))); // Menos tiempo = más puntos
-    } else if (gameState.currentGame.type === 'memory') {
-      const { correct } = data;
-      points = correct ? 15 : 0;
+      if (reactionTime < 200) points = 100;
+      else if (reactionTime < 300) points = 75;
+      else if (reactionTime < 400) points = 50;
+      else points = 25;
+    } else if (data.type === 'memory') {
+      const { level, correct } = data;
+      points = correct ? (level * 15) : 0; // 15 puntos por nivel
     }
     
     // Actualizar puntaje del jugador
