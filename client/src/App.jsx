@@ -4,8 +4,23 @@ import io from 'socket.io-client'
 // Contraseña del host
 const HOST_PASSWORD = "fiesta2025"
 
-// Conexión Socket.IO
-const socket = io(window.location.origin)
+// Conexión Socket.IO - Compatible con desarrollo y producción
+const socketUrl = process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost' 
+  ? window.location.origin 
+  : 'http://localhost:3001'
+
+// Configuración optimizada para GoDaddy - Solo polling en producción
+const socket = io(socketUrl, {
+  transports: window.location.hostname === 'localhost' 
+    ? ['websocket', 'polling']  // En local usar WebSocket
+    : ['polling'],              // En producción solo polling (más estable en GoDaddy)
+  timeout: 20000,
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 5,
+  maxReconnectionAttempts: 5,
+  forceNew: true
+})
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home')
@@ -35,12 +50,27 @@ function App() {
       console.log('✅ Conectado al servidor Socket.IO:', socket.id)
       setSocketConnected(true)
       setPlayerId(socket.id)
+      
+      // Solicitar estado actualizado al reconectar
+      setTimeout(() => {
+        console.log('🔄 Solicitando estado tras reconexión...')
+        socket.emit('request-users-list')
+      }, 1000)
     })
 
     socket.on('disconnect', () => {
       console.log('❌ Desconectado del servidor Socket.IO')
       setSocketConnected(false)
       setPlayerId(null)
+    })
+
+    socket.on('reconnect', () => {
+      console.log('🔄 Reconectado al servidor Socket.IO')
+      socket.emit('request-users-list')
+    })
+
+    socket.on('connect_error', (error) => {
+      console.log('❌ Error de conexión:', error.message)
     })
 
     // Eventos de jugadores
@@ -67,6 +97,26 @@ function App() {
     socket.on('player-disconnected', (player) => {
       console.log('➖ Jugador desconectado:', player)
       setConnectedUsers(prev => prev.filter(u => u.id !== player.id))
+      
+      // Si el jugador desconectado era yo, resetear estado
+      if (player.id === socket.id) {
+        setPlayerName('')
+        setIsHost(false)
+        setCurrentPage('home')
+        setCurrentGame(null)
+        setGameState('waiting')
+      }
+    })
+
+    // Nuevo evento para sincronizar lista de usuarios conectados
+    socket.on('users-list-updated', (usersList) => {
+      console.log('👥 Lista de usuarios actualizada:', usersList)
+      setConnectedUsers(usersList.map(user => ({
+        id: user.id,
+        name: user.name,
+        isHost: user.isAdmin,
+        connected: user.isOnline
+      })))
     })
 
     // Eventos de ranking
@@ -107,6 +157,9 @@ function App() {
         setCurrentGame(state.currentGame)
         setGameState(state.currentGame.status)
       }
+      
+      // Solicitar lista de usuarios después de recibir el estado
+      console.log('🔄 Solicitando lista de usuarios actualizada...')
     })
 
     socket.on('error', (error) => {
@@ -114,13 +167,25 @@ function App() {
       alert(`Error: ${error}`)
     })
 
+    // Sincronización automática cada 10 segundos para compensar desconexiones
+    const syncInterval = setInterval(() => {
+      if (socketConnected && playerName) {
+        console.log('🔄 Sincronización automática...')
+        socket.emit('request-users-list')
+      }
+    }, 10000)
+
     // Cleanup
     return () => {
+      clearInterval(syncInterval)
       socket.off('connect')
       socket.off('disconnect')
+      socket.off('reconnect')
+      socket.off('connect_error')
       socket.off('player-registered')
       socket.off('player-joined')
       socket.off('player-disconnected')
+      socket.off('users-list-updated')
       socket.off('rankings-updated')
       socket.off('game-created')
       socket.off('game-started')
@@ -333,6 +398,27 @@ function App() {
       <div>🆔 Socket ID: {playerId || 'N/A'}</div>
       <div>🎮 Juego actual: {currentGame?.type || 'Ninguno'}</div>
       <div>🎯 Estado juego: {gameState}</div>
+      
+      {/* Botón de debug para solicitar usuarios */}
+      <button 
+        onClick={() => {
+          console.log('🔄 Solicitando lista de usuarios manualmente...')
+          socket.emit('request-users-list')
+        }}
+        style={{
+          background: '#ff6b6b',
+          color: 'white',
+          border: 'none',
+          padding: '5px 10px',
+          borderRadius: '4px',
+          fontSize: '10px',
+          margin: '5px 0',
+          cursor: 'pointer'
+        }}
+      >
+        🔄 Actualizar Lista
+      </button>
+      
       <div style={{ marginTop: '5px', fontSize: '10px' }}>
         <strong>Lista usuarios:</strong>
         {connectedUsers.map(u => (

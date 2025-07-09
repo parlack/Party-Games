@@ -17,7 +17,14 @@ const io = socketIo(server, {
   cors: {
     origin: corsOrigins.filter(Boolean),
     methods: ["GET", "POST"]
-  }
+  },
+  // Configuración optimizada para GoDaddy - Solo polling en producción
+  transports: process.env.NODE_ENV === 'production' 
+    ? ['polling']                // En producción solo polling (sin WebSocket)
+    : ['websocket', 'polling'],  // En desarrollo usar WebSocket
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 app.use(cors({
@@ -61,10 +68,19 @@ if (process.env.NODE_ENV === 'production') {
 // Función para actualizar rankings
 function updateRankings() {
   gameState.rankings = Array.from(gameState.players.values())
+    .filter(p => p.isOnline) // Solo jugadores online
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
   
   io.emit('rankings-updated', gameState.rankings);
+}
+
+function updateUsersList() {
+  const usersList = Array.from(gameState.players.values())
+    .filter(p => p.isOnline);
+  
+  console.log(`📡 Enviando lista de usuarios (${usersList.length} conectados):`, usersList.map(u => u.name));
+  io.emit('users-list-updated', usersList);
 }
 
 // Función para crear un nuevo juego
@@ -154,6 +170,7 @@ io.on('connection', (socket) => {
     io.emit('player-joined', player);
     
     updateRankings();
+    updateUsersList();
     
     console.log(`Jugador registrado: ${name} (Admin: ${isAdmin})`);
   });
@@ -284,6 +301,13 @@ io.on('connection', (socket) => {
     io.emit('tv-ranking-show', gameState.rankings);
     console.log(`Ranking mostrado en TV por ${player.name}`);
   });
+
+  // Solicitar lista de usuarios (para debugging)
+  socket.on('request-users-list', () => {
+    console.log(`📋 Usuario ${socket.id} solicita lista de usuarios`);
+    const onlineUsers = Array.from(gameState.players.values()).filter(p => p.isOnline);
+    socket.emit('users-list-updated', onlineUsers);
+  });
   
   // Desconexión
   socket.on('disconnect', () => {
@@ -292,6 +316,11 @@ io.on('connection', (socket) => {
     if (player) {
       player.isOnline = false;
       io.emit('player-disconnected', player);
+      
+      // Limpiar jugador del juego actual si estaba participando
+      if (gameState.currentGame && gameState.currentGame.players.includes(socket.id)) {
+        gameState.currentGame.players = gameState.currentGame.players.filter(id => id !== socket.id);
+      }
       
       // Si era admin, limpiar estado
       if (player.isAdmin) {
@@ -302,16 +331,39 @@ io.on('connection', (socket) => {
         }
       }
       
+      // Actualizar listas
+      updateRankings();
+      updateUsersList();
+      
+      // Eliminar completamente el jugador después de un tiempo más largo (GoDaddy)
+      setTimeout(() => {
+        if (gameState.players.has(socket.id) && !gameState.players.get(socket.id).isOnline) {
+          gameState.players.delete(socket.id);
+          console.log(`Jugador ${player.name} eliminado definitivamente`);
+          updateRankings();
+          updateUsersList();
+        }
+      }, 60000); // 60 segundos - dar más tiempo para reconexión
+      
       console.log(`Usuario desconectado: ${player.name}`);
     }
   });
   
   // Enviar estado actual al conectarse
+  const onlineUsers = Array.from(gameState.players.values()).filter(p => p.isOnline);
   socket.emit('current-state', {
     rankings: gameState.rankings,
     currentGame: gameState.currentGame,
-    playersOnline: Array.from(gameState.players.values()).filter(p => p.isOnline).length
+    playersOnline: onlineUsers.length
   });
+  
+  console.log(`🔌 Nueva conexión ${socket.id}, enviando estado actual`);
+  
+  // Enviar lista actual de usuarios específicamente a este socket
+  socket.emit('users-list-updated', onlineUsers);
+  
+  // También enviar la lista general actualizada
+  updateUsersList();
 });
 
 const PORT = process.env.PORT || 3001;
