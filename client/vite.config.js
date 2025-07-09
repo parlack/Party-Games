@@ -13,5 +13,24 @@ export default defineConfig({
         secure: false,
       }
     }
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+    minify: 'esbuild',
+    sourcemap: false,
+  },
+  esbuild: {
+    target: 'es2018',
+    logLevel: 'error',
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2018',
+    },
+  },
 }) 

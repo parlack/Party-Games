@@ -5,11 +5,18 @@
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:sequential": "npm run server & sleep 5 && npm run client",
+    "dev:prod": "npm run build && npm run start",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
+    "build:prod": "cd client && NODE_OPTIONS='--max-old-space-size=512' npm run build",
     "start": "cd server && npm start",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+    "start:prod": "cd server && NODE_ENV=production npm start",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "production": "npm run build:prod && npm run start:prod",
+    "godaddy": "cd client && npm run build && cd ../server && node index.js",
+    "setup:prod": "npm install --only=production && cd server && npm install --only=production && cd ../client && npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

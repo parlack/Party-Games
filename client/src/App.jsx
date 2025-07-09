@@ -5,7 +5,7 @@ import io from 'socket.io-client'
 const HOST_PASSWORD = "fiesta2025"
 
 // Conexión Socket.IO
-const socket = io('http://localhost:3001')
+const socket = io(window.location.origin)
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home')

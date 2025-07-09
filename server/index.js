@@ -2,18 +2,28 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
+
+// Configuración más flexible para producción
+const corsOrigins = process.env.NODE_ENV === 'production' 
+  ? ["https://games.xn--venamifiestitade20aosporfaplis-w4c.space", process.env.FRONTEND_URL]
+  : ["http://localhost:5173", "http://localhost:5174"];
+
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: corsOrigins.filter(Boolean),
     methods: ["GET", "POST"]
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: corsOrigins.filter(Boolean),
+  credentials: true
+}));
 app.use(express.json());
 
 // Estado del juego
@@ -25,8 +35,12 @@ let gameState = {
   gameHistory: []
 };
 
-// Middleware para servir archivos estáticos
-app.use(express.static('public'));
+// Servir archivos estáticos del cliente compilado en producción
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+} else {
+  app.use(express.static('public'));
+}
 
 // Rutas API
 app.get('/api/rankings', (req, res) => {
@@ -36,6 +50,13 @@ app.get('/api/rankings', (req, res) => {
 app.get('/api/players', (req, res) => {
   res.json(Array.from(gameState.players.values()));
 });
+
+// Ruta catch-all para React Router en producción
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+}
 
 // Función para actualizar rankings
 function updateRankings() {
