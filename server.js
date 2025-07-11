@@ -1,9 +1,13 @@
-const express = require('express');
-const http = require('http');
-const { Server: SocketIOServer } = require('socket.io');
-const cors = require('cors');
-const { createRequestHandler } = require('@react-router/express');
-const path = require('path');
+import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import cors from 'cors';
+import { createRequestHandler } from '@react-router/express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configuración del entorno
 const config = {
@@ -14,7 +18,7 @@ const config = {
 };
 
 const app = express();
-const server = http.createServer(app);
+const server = createServer(app);
 
 // Configurar CORS
 app.use(cors({
@@ -185,7 +189,9 @@ app.use(express.static(path.join(__dirname, 'build/client')));
 
 // Configurar React Router para manejar todas las demás rutas
 app.all('*', createRequestHandler({
-  build: () => import('./build/server/index.js'),
+  build: async () => {
+    return await import('./build/server/index.js');
+  },
   mode: process.env.NODE_ENV
 }));
 
@@ -229,4 +235,4 @@ process.on('SIGINT', () => {
   });
 });
 
-module.exports = app; 
+export default app; 
