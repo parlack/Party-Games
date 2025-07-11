@@ -1,0 +1,16 @@
+{
+  "name": "space-party-backend",
+  "version": "1.0.0",
+  "description": "Backend para Space Party Games",
+  "main": "server.ts",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon --exec ts-node server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["websocket", "games", "party", "multiplayer"],
+  "author": "",
+  "license": "ISC"
+} 

@@ -1,26 +1,49 @@
 {
-  "name": "party-games",
-  "version": "1.0.0",
-  "description": "Aplicación web de mini-juegos para fiestas con ranking en tiempo real",
-  "main": "server/index.js",
+  "name": "spice",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "dev:sequential": "npm run server & sleep 5 && npm run client",
-    "dev:prod": "npm run build && npm run start",
-    "server": "cd server && npm run dev",
-    "client": "cd client && npm run dev",
-    "build": "cd client && npm run build",
-    "build:prod": "cd client && NODE_OPTIONS='--max-old-space-size=512' npm run build",
-    "start": "cd server && npm start",
-    "start:prod": "cd server && NODE_ENV=production npm start",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
-    "production": "npm run build:prod && npm run start:prod",
-    "godaddy": "cd client && npm run build && cd ../server && node index.js",
-    "setup:prod": "npm install --only=production && cd server && npm install --only=production && cd ../client && npm install"
+    "build": "react-router build",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "react-router dev",
+    "dev:backend": "cd backend && npm run dev",
+    "start": "react-router-serve ./build/server/index.js",
+    "start:backend": "node backend/dist/server.js",
+    "build:backend": "tsc --project backend/tsconfig.json",
+    "typecheck": "react-router typegen && tsc"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/material": "^7.2.0",
+    "@react-router/node": "^7.5.3",
+    "@react-router/serve": "^7.5.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "isbot": "^5.1.27",
+    "lucide": "^0.525.0",
+    "lucide-react": "^0.525.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router": "^7.5.3",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
-  },
-  "author": "",
-  "license": "MIT"
-} 
+    "@react-router/dev": "^7.5.3",
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2",
+    "tailwindcss": "^4.1.4",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.3",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}
