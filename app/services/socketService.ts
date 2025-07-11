@@ -1,7 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 import type { Room, Player } from './apiService';
 
-const SOCKET_URL = 'http://localhost:3002';
+const SOCKET_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3002' 
+  : window.location.origin;
 
 export interface JoinRoomRequest {
   roomCode: string;

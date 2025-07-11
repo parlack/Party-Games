@@ -18,5 +18,7 @@ FROM node:20-alpine
 COPY ./package.json package-lock.json /app/
 COPY --from=production-dependencies-env /app/node_modules /app/node_modules
 COPY --from=build-env /app/build /app/build
+COPY --from=build-env /app/server.js /app/server.js
+COPY --from=build-env /app/backend/dist /app/backend/dist
 WORKDIR /app
 CMD ["npm", "run", "start"]

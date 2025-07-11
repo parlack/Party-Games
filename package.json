@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "react-router build",
+    "build": "react-router build && npm run build:backend",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "react-router dev",
     "dev:backend": "cd backend && npm run dev",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "node server.js",
     "start:backend": "node backend/dist/server.js",
     "build:backend": "tsc --project backend/tsconfig.json",
     "typecheck": "react-router typegen && tsc"
@@ -17,6 +17,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.2.0",
     "@mui/material": "^7.2.0",
+    "@react-router/express": "^7.5.3",
     "@react-router/node": "^7.5.3",
     "@react-router/serve": "^7.5.3",
     "cors": "^2.8.5",

@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:3002/api';
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3002/api' 
+  : `${window.location.origin}/api`;
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -115,7 +117,10 @@ class ApiService {
     stats: any;
   }>> {
     try {
-      const response = await fetch('http://localhost:3002/health');
+      const healthUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3002/health' 
+        : `${window.location.origin}/health`;
+      const response = await fetch(healthUrl);
       const data = await response.json();
       return data;
     } catch (error) {
