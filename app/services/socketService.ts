@@ -1,9 +1,18 @@
 import { io, Socket } from 'socket.io-client';
 import type { Room, Player } from './apiService';
 
-const SOCKET_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3002' 
-  : window.location.origin;
+const getSocketUrl = () => {
+  if (typeof window === 'undefined') {
+    // En el servidor, no hay URL válida
+    return '';
+  }
+  // En el cliente, usar la lógica original
+  return window.location.hostname === 'localhost' 
+    ? 'http://localhost:3002' 
+    : window.location.origin;
+};
+
+let SOCKET_URL = getSocketUrl();
 
 export interface JoinRoomRequest {
   roomCode: string;
@@ -46,6 +55,16 @@ class SocketService {
     return new Promise((resolve, reject) => {
       if (this.socket?.connected) {
         resolve();
+        return;
+      }
+
+      // Asegurar que tenemos la URL correcta en el cliente
+      if (!SOCKET_URL) {
+        SOCKET_URL = getSocketUrl();
+      }
+
+      if (!SOCKET_URL) {
+        reject(new Error('No se puede conectar desde el servidor'));
         return;
       }
 

@@ -1,6 +1,15 @@
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3002/api' 
-  : `${window.location.origin}/api`;
+const getApiBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    // En el servidor, no hacer peticiones HTTP
+    return '';
+  }
+  // En el cliente, usar la lógica original
+  return window.location.hostname === 'localhost' 
+    ? 'http://localhost:3002/api' 
+    : `${window.location.origin}/api`;
+};
+
+let API_BASE_URL = getApiBaseUrl();
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -52,6 +61,18 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
+      // Asegurar que tenemos la URL correcta en el cliente
+      if (!API_BASE_URL) {
+        API_BASE_URL = getApiBaseUrl();
+      }
+
+      if (!API_BASE_URL) {
+        return {
+          success: false,
+          error: 'API no disponible en el servidor',
+        };
+      }
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
@@ -117,9 +138,23 @@ class ApiService {
     stats: any;
   }>> {
     try {
-      const healthUrl = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3002/health' 
-        : `${window.location.origin}/health`;
+      const getHealthUrl = () => {
+        if (typeof window === 'undefined') {
+          return '';
+        }
+        return window.location.hostname === 'localhost' 
+          ? 'http://localhost:3002/health' 
+          : `${window.location.origin}/health`;
+      };
+      
+      const healthUrl = getHealthUrl();
+      
+      if (!healthUrl) {
+        return {
+          success: false,
+          error: 'Health check no disponible en el servidor',
+        };
+      }
       const response = await fetch(healthUrl);
       const data = await response.json();
       return data;
