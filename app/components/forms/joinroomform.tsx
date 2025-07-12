@@ -83,7 +83,7 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       namePlaceholder: 'Ingresa tu nombre...',
       codePlaceholder: 'Ej: ABC123',
       spectatorDesc: 'Podrás ver la partida sin participar',
-      tvDesc: 'Mostrar códigos QR y pantalla compartida',
+      tvDesc: 'Abrir ventana TV con QR, rankings y estadísticas',
     },
     en: {
       title: 'Join a Room',
@@ -97,7 +97,7 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       namePlaceholder: 'Enter your name...',
       codePlaceholder: 'Ex: ABC123',
       spectatorDesc: 'You can watch the game without participating',
-      tvDesc: 'Show QR codes and shared screen',
+      tvDesc: 'Open TV window with QR, rankings and stats',
     },
   };
 
@@ -108,7 +108,29 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
     if (playerName.trim() && roomCode.trim()) {
       setIsJoining(true);
       try {
-        await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
+        if (isTV) {
+          // Para modo TV, abrir nueva ventana y unirse
+          const tvUrl = `${window.location.origin}/tv/${roomCode.trim().toUpperCase()}`;
+          const tvWindow = window.open(tvUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+          
+          if (tvWindow) {
+            // Cerrar el modal inmediatamente
+            setIsJoining(false);
+            onClose();
+            
+            // Esperar un poco para que se abra la ventana y luego unirse
+            setTimeout(() => {
+              // Unirse a la sala como TV
+              joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
+            }, 1000);
+          } else {
+            // Si no se puede abrir la ventana, navegar normalmente
+            await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
+          }
+        } else {
+          // Para modo normal, unirse normalmente
+          await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
+        }
         // La navegación se manejará en el useEffect cuando se una exitosamente
       } catch (error) {
         console.error('Error uniéndose a sala:', error);
