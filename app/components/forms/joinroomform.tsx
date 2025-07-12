@@ -111,19 +111,23 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
         if (isTV) {
           // Para modo TV, abrir nueva ventana y unirse
           const tvUrl = `${window.location.origin}/tv/${roomCode.trim().toUpperCase()}`;
+          console.log('🔗 Abriendo ventana TV:', tvUrl);
           const tvWindow = window.open(tvUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
           
           if (tvWindow) {
+            console.log('✅ Ventana TV abierta exitosamente');
             // Cerrar el modal inmediatamente
             setIsJoining(false);
             onClose();
             
             // Esperar un poco para que se abra la ventana y luego unirse
             setTimeout(() => {
+              console.log('🔄 Conectando a la sala como TV...');
               // Unirse a la sala como TV
               joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
             }, 1000);
           } else {
+            console.error('❌ No se pudo abrir la ventana TV');
             // Si no se puede abrir la ventana, navegar normalmente
             await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
           }

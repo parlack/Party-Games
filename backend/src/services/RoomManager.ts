@@ -85,25 +85,25 @@ class RoomManager {
     const room = this.getRoomByCode(roomCode);
     if (!room) return null;
 
-    // Verificar si ya existe un host offline con el mismo nombre (caso de creador de sala)
-    const existingHost = room.players.find(p => 
-      p.isHost && 
+    // Verificar si ya existe un jugador con el mismo nombre (evitar duplicados)
+    const existingPlayer = room.players.find(p => 
       p.name === playerName && 
-      !p.isOnline && 
-      !p.socketId
+      (!p.isOnline || !p.socketId)
     );
 
-    if (existingHost) {
-      // Actualizar el host existente con el socketId
-      existingHost.socketId = socketId;
-      existingHost.isOnline = true;
-      existingHost.joinedAt = new Date();
+    if (existingPlayer) {
+      // Actualizar el jugador existente con el socketId
+      existingPlayer.socketId = socketId;
+      existingPlayer.isOnline = true;
+      existingPlayer.joinedAt = new Date();
+      existingPlayer.isSpectator = isSpectator;
+      existingPlayer.isTV = isTV;
       room.lastActivity = new Date();
 
-      this.playerRooms.set(existingHost.id, room.id);
+      this.playerRooms.set(existingPlayer.id, room.id);
 
-      console.log(`🔄 Host ${playerName} se conectó a su sala ${roomCode}`);
-      return { room, player: existingHost };
+      console.log(`🔄 ${playerName} se reconectó a su sala ${roomCode}`);
+      return { room, player: existingPlayer };
     }
 
     // Verificar si la sala está llena (no contar jugadores offline)

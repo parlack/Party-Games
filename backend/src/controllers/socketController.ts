@@ -20,8 +20,9 @@ export function setupSocketHandlers(io: SocketIOServer, roomManager: RoomManager
           return;
         }
 
-        // Verificar si la sala está llena
-        if (room.currentPlayers >= room.maxPlayers) {
+        // Verificar si la sala está llena (contar solo jugadores online)
+        const onlinePlayers = room.players.filter(p => p.isOnline).length;
+        if (onlinePlayers >= room.maxPlayers) {
           socket.emit('room-full');
           return;
         }
