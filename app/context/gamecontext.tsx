@@ -173,23 +173,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const frontendRoom = convertBackendRoomToFrontend(room);
       const frontendPlayer = convertBackendPlayerToFrontend(player);
       
+      console.log('✅ Unido a la sala exitosamente:', {
+        roomCode: frontendRoom.code,
+        playerName: frontendPlayer.name,
+        isHost: frontendPlayer.isHost,
+        isTV: frontendPlayer.isTV,
+        isSpectator: frontendPlayer.isSpectator
+      });
+      
       dispatch({ type: 'SET_ROOM', payload: frontendRoom });
       dispatch({ type: 'SET_PLAYER', payload: frontendPlayer });
       dispatch({ type: 'SET_ERROR', payload: null });
       
       console.log('✅ Unido a la sala:', frontendRoom.code);
-      console.log('🎯 DEBUG - Datos del jugador:', {
-        name: frontendPlayer.name,
-        isHost: frontendPlayer.isHost,
-        isTV: frontendPlayer.isTV,
-        id: frontendPlayer.id
-      });
-      console.log('🎯 DEBUG - Datos de la sala:', {
-        code: frontendRoom.code,
-        host: frontendRoom.host.name,
-        hostIsTV: frontendRoom.host.isTV,
-        hostId: frontendRoom.host.id
-      });
     });
 
     socketService.on('room-left', () => {
@@ -338,6 +334,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
+    console.log('🏠 Iniciando creación de sala con settings:', settings);
+
     try {
       // Crear sala via API
       const response = await apiService.createRoom({
@@ -354,10 +352,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Unirse a la sala recién creada via WebSocket
+      console.log('✅ Sala creada exitosamente:', response.data);
+
+      // Unirse a la sala recién creada via WebSocket como host
+      const hostName = settings.hostName || 'Host';
+      console.log('🔗 Host uniéndose a la sala:', { 
+        roomCode: response.data.code, 
+        hostName,
+        isTV: settings.isTV || false 
+      });
+
       socketService.joinRoom({
         roomCode: response.data.code,
-        playerName: settings.hostName || 'Host',
+        playerName: hostName,
         isSpectator: false,
         isTV: settings.isTV || false
       });

@@ -41,29 +41,19 @@ export const CreateRoomWizard: React.FC<CreateRoomWizardProps> = ({ open, onClos
 
   // Navegar automáticamente cuando se una a una sala exitosamente
   useEffect(() => {
-    if (state.currentRoom && state.currentPlayer && isCreating) {
+    if (state.currentRoom && isCreating) {
       console.log('🎯 Navegando a sala desde create:', state.currentRoom.code);
       console.log('🎯 Estado actual:', { 
         room: state.currentRoom?.code, 
         player: state.currentPlayer?.name,
-        playerIsTV: state.currentPlayer?.isTV,
-        isCreating,
-        localIsTV: isTV 
+        isCreating 
       });
       setIsCreating(false);
       onClose();
       setActiveStep(0);
-      
-      // Redirigir a la vista TV si el jugador se creó como TV
-      if (state.currentPlayer.isTV) {
-        console.log('🎯 Navegando a modo TV');
-        navigate(`/tv/${state.currentRoom.code}`);
-      } else {
-        console.log('🎯 Navegando a sala de espera');
-        navigate(`/waitingroom/${state.currentRoom.code}`);
-      }
+      navigate(`/waitingroom/${state.currentRoom.code}`);
     }
-  }, [state.currentRoom, state.currentPlayer, isCreating, navigate, onClose, isTV]);
+  }, [state.currentRoom, isCreating, navigate, onClose]);
 
   // Resetear estado de creación si hay error
   useEffect(() => {
@@ -93,8 +83,6 @@ export const CreateRoomWizard: React.FC<CreateRoomWizardProps> = ({ open, onClos
       confirmText: 'Confirma los detalles y crea tu sala de juego.',
       hostName: 'Tu nombre',
       hostNamePlaceholder: 'Ej: Juan',
-      tvMode: 'Modo TV',
-      tvDesc: 'Mostrar códigos QR y pantalla compartida',
     },
     en: {
       title: 'Create New Room',
@@ -115,8 +103,6 @@ export const CreateRoomWizard: React.FC<CreateRoomWizardProps> = ({ open, onClos
       confirmText: 'Confirm the details and create your game room.',
       hostName: 'Your name',
       hostNamePlaceholder: 'Ex: John',
-      tvMode: 'TV Mode',
-      tvDesc: 'Show QR codes and shared screen',
     },
   };
 
@@ -230,48 +216,47 @@ export const CreateRoomWizard: React.FC<CreateRoomWizardProps> = ({ open, onClos
                 }}
               />
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ 
-                  p: 3, 
-                  backgroundColor: 'rgba(139, 92, 246, 0.1)', 
-                  borderRadius: '16px',
-                  border: '1px solid rgba(139, 92, 246, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2
-                }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={isTV}
-                        onChange={(e) => setIsTV(e.target.checked)}
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: '#8b5cf6',
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: '#8b5cf6',
-                          },
-                        }}
-                      />
-                    }
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Tv size={20} color="#8b5cf6" />
-                            <Typography sx={{ fontWeight: 600, color: '#8b5cf6' }}>
-                              {t.tvMode}
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {t.tvDesc}
+              {/* Opción de modo TV */}
+              <Box sx={{ 
+                p: 3, 
+                backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                borderRadius: '16px',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={isTV}
+                      onChange={(e) => setIsTV(e.target.checked)}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#8b5cf6',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#8b5cf6',
+                        },
+                      }}
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Tv size={20} color="#8b5cf6" />
+                          <Typography sx={{ fontWeight: 600, color: '#8b5cf6' }}>
+                            Modo TV
                           </Typography>
                         </Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Mostrar códigos QR y pantalla compartida
+                        </Typography>
                       </Box>
-                    }
-                  />
-                </Box>
+                    </Box>
+                  }
+                />
               </Box>
             </Box>
           </Fade>
@@ -456,6 +441,20 @@ export const CreateRoomWizard: React.FC<CreateRoomWizardProps> = ({ open, onClos
                     {isRandomGames ? t.randomGames : t.customGames}
                   </Typography>
                 </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography sx={{ fontWeight: 600, color: '#10b981' }}>Anfitrión:</Typography>
+                  <Typography sx={{ color: 'white', fontWeight: 500 }}>
+                    {hostName || 'Host'} {isTV && '📺'}
+                  </Typography>
+                </Box>
+                {isTV && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 600, color: '#10b981' }}>Modo TV:</Typography>
+                    <Typography sx={{ color: 'white', fontWeight: 500 }}>
+                      ✅ Activado
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
           </Fade>
