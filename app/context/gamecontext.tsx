@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { GameState, Room, Player } from '../types/game';
+import type { AppState, Room, Player, TriviaState, TriviaQuestion, PlayerScore, SubmitAnswerRequest } from '../types/game';
 import { apiService } from '../services/apiService';
 import { socketService } from '../services/socketService';
 import type { Room as BackendRoom, Player as BackendPlayer } from '../services/apiService';
 
 interface GameContextType {
-  state: GameState;
+  state: AppState;
   joinRoom: (code: string, playerName: string, isSpectator?: boolean, isTV?: boolean) => Promise<void>;
   createRoom: (settings: any) => Promise<void>;
   leaveRoom: () => void;
   startGame: () => void;
+  startTrivia: () => void;
+  submitAnswer: (answer: string, timeUsed: number) => void;
+  nextQuestion: () => void;
   setLanguage: (lang: 'es' | 'en') => void;
   getRoomByCode: (code: string) => Room | null;
 }
@@ -25,15 +28,23 @@ type GameAction =
   | { type: 'UPDATE_ROOM'; payload: Room }
   | { type: 'PLAYER_JOINED'; payload: Player }
   | { type: 'PLAYER_LEFT'; payload: string }
-  | { type: 'SET_CONNECTED'; payload: boolean };
+  | { type: 'SET_CONNECTED'; payload: boolean }
+  | { type: 'SET_TRIVIA_STATE'; payload: TriviaState }
+  | { type: 'UPDATE_TRIVIA_STATE'; payload: Partial<TriviaState> }
+  | { type: 'SET_CURRENT_QUESTION'; payload: TriviaQuestion | null }
+  | { type: 'SET_SCORES'; payload: PlayerScore[] }
+  | { type: 'UPDATE_SCORE'; payload: PlayerScore }
+  | { type: 'SET_PLAYER_ANSWER'; payload: { playerId: string; answer: string; timeUsed: number } }
+  | { type: 'CLEAR_TRIVIA_STATE' };
 
-const initialState: GameState = {
+const initialState: AppState = {
   currentRoom: null,
   currentPlayer: null,
   isLoading: false,
   error: null,
   language: 'es',
   rooms: [],
+  triviaState: null,
 };
 
 // Funciones de conversión entre tipos frontend y backend
@@ -53,7 +64,7 @@ const convertBackendPlayerToFrontend = (backendPlayer: BackendPlayer): Player =>
   };
 };
 
-function gameReducer(state: GameState, action: GameAction): GameState {
+function gameReducer(state: AppState, action: GameAction): AppState {
   switch (action.type) {
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
@@ -85,6 +96,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, currentRoom: roomAfterLeave };
     case 'SET_CONNECTED':
       return state; // Podríamos añadir un campo isConnected al estado si es necesario
+    case 'SET_TRIVIA_STATE':
+      return { ...state, triviaState: action.payload };
+    case 'UPDATE_TRIVIA_STATE':
+      return { 
+        ...state, 
+        triviaState: state.triviaState ? { ...state.triviaState, ...action.payload } : null 
+      };
+    case 'SET_CURRENT_QUESTION':
+      return { 
+        ...state, 
+        triviaState: state.triviaState ? { ...state.triviaState, currentQuestion: action.payload } : null 
+      };
+    case 'SET_SCORES':
+      return { 
+        ...state, 
+        triviaState: state.triviaState ? { ...state.triviaState, scores: action.payload } : null 
+      };
+    case 'UPDATE_SCORE':
+      if (!state.triviaState) return state;
+      const updatedScores = state.triviaState.scores.map(score => 
+        score.playerId === action.payload.playerId ? action.payload : score
+      );
+      return { 
+        ...state, 
+        triviaState: { ...state.triviaState, scores: updatedScores } 
+      };
+    case 'SET_PLAYER_ANSWER':
+      if (!state.triviaState) return state;
+      const updatedAnswers = { ...state.triviaState.playerAnswers };
+      updatedAnswers[action.payload.playerId] = {
+        answer: action.payload.answer,
+        timeUsed: action.payload.timeUsed,
+        timestamp: Date.now()
+      };
+      return { 
+        ...state, 
+        triviaState: { ...state.triviaState, playerAnswers: updatedAnswers } 
+      };
+    case 'CLEAR_TRIVIA_STATE':
+      return { ...state, triviaState: null };
     default:
       return state;
   }
@@ -132,6 +183,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socketService.on('room-left', () => {
       dispatch({ type: 'SET_ROOM', payload: null });
       dispatch({ type: 'SET_PLAYER', payload: null });
+      dispatch({ type: 'CLEAR_TRIVIA_STATE' });
       console.log('👋 Saliste de la sala');
     });
 
@@ -155,6 +207,67 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const frontendRoom = convertBackendRoomToFrontend(room);
       dispatch({ type: 'UPDATE_ROOM', payload: frontendRoom });
       console.log('🎮 ¡Juego iniciado!');
+    });
+
+    // Eventos de trivia
+    socketService.on('trivia-started', (data: { questions: TriviaQuestion[], scores: PlayerScore[] }) => {
+      console.log('🎯 ¡Trivia iniciada!', data);
+      const triviaState: TriviaState = {
+        isActive: true,
+        questions: data.questions,
+        currentQuestionIndex: 0,
+        currentQuestion: data.questions[0] || null,
+        scores: data.scores,
+        playerAnswers: {},
+        questionStartTime: Date.now(),
+        timeLimit: 30000, // 30 segundos por defecto
+      };
+      dispatch({ type: 'SET_TRIVIA_STATE', payload: triviaState });
+    });
+
+    socketService.on('question-sent', (data: { question: TriviaQuestion, questionIndex: number, timeLimit: number }) => {
+      console.log('❓ Nueva pregunta:', data.question.question);
+      dispatch({ type: 'UPDATE_TRIVIA_STATE', payload: {
+        currentQuestion: data.question,
+        currentQuestionIndex: data.questionIndex,
+        questionStartTime: Date.now(),
+        timeLimit: data.timeLimit,
+        playerAnswers: {} // Limpiar respuestas anteriores
+      }});
+    });
+
+    socketService.on('answer-received', (data: { playerId: string, playerName: string, isCorrect: boolean, timeUsed: number }) => {
+      console.log(`📝 Respuesta recibida de ${data.playerName}:`, data.isCorrect ? '✅' : '❌');
+      // Actualizar que el jugador ya respondió
+      dispatch({ type: 'SET_PLAYER_ANSWER', payload: {
+        playerId: data.playerId,
+        answer: data.isCorrect ? 'correct' : 'incorrect',
+        timeUsed: data.timeUsed
+      }});
+    });
+
+    socketService.on('question-ended', (data: { correctAnswer: string, scores: PlayerScore[], nextQuestionIn?: number }) => {
+      console.log('⏰ Pregunta terminada. Respuesta correcta:', data.correctAnswer);
+      dispatch({ type: 'SET_SCORES', payload: data.scores });
+      
+      // Si hay siguiente pregunta, mostrar countdown
+      if (data.nextQuestionIn) {
+        dispatch({ type: 'UPDATE_TRIVIA_STATE', payload: {
+          showResults: true,
+          nextQuestionCountdown: data.nextQuestionIn
+        }});
+      }
+    });
+
+    socketService.on('trivia-ended', (data: { finalScores: PlayerScore[], winner: PlayerScore }) => {
+      console.log('🏆 ¡Trivia terminada! Ganador:', data.winner.playerName);
+      dispatch({ type: 'UPDATE_TRIVIA_STATE', payload: {
+        isActive: false,
+        isCompleted: true,
+        finalScores: data.finalScores,
+        winner: data.winner,
+        showResults: true
+      }});
     });
 
     // Eventos de error
@@ -248,6 +361,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const leaveRoom = () => {
     if (state.currentRoom) {
       socketService.leaveRoom();
+      dispatch({ type: 'CLEAR_TRIVIA_STATE' });
     }
   };
 
@@ -256,6 +370,49 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socketService.startGame();
     } else {
       dispatch({ type: 'SET_ERROR', payload: 'Solo el host puede iniciar el juego' });
+    }
+  };
+
+  const startTrivia = () => {
+    if (state.currentPlayer?.isHost) {
+      console.log('🎯 Iniciando trivia...');
+      socketService.startTrivia();
+    } else {
+      dispatch({ type: 'SET_ERROR', payload: 'Solo el host puede iniciar la trivia' });
+    }
+  };
+
+  const submitAnswer = (answer: string, timeUsed: number) => {
+    if (!state.currentPlayer || !state.triviaState?.currentQuestion) {
+      dispatch({ type: 'SET_ERROR', payload: 'No hay pregunta activa' });
+      return;
+    }
+
+    console.log('📝 Enviando respuesta:', answer, 'Tiempo usado:', timeUsed);
+    
+    const answerData: SubmitAnswerRequest = {
+      playerId: state.currentPlayer.id,
+      questionIndex: state.triviaState.currentQuestionIndex,
+      selectedAnswer: answer,
+      timeUsed
+    };
+
+    socketService.submitAnswer(answerData);
+
+    // Marcar localmente que el jugador ya respondió
+    dispatch({ type: 'SET_PLAYER_ANSWER', payload: {
+      playerId: state.currentPlayer.id,
+      answer,
+      timeUsed
+    }});
+  };
+
+  const nextQuestion = () => {
+    if (state.currentPlayer?.isHost) {
+      console.log('⏭️ Avanzando a siguiente pregunta...');
+      socketService.nextQuestion();
+    } else {
+      dispatch({ type: 'SET_ERROR', payload: 'Solo el host puede avanzar preguntas' });
     }
   };
 
@@ -270,6 +427,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createRoom,
       leaveRoom,
       startGame,
+      startTrivia,
+      submitAnswer,
+      nextQuestion,
       setLanguage,
       getRoomByCode,
     }}>

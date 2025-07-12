@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import type { Room, Player } from './apiService';
+import type { SubmitAnswerRequest } from '../types/game';
 
 const getSocketUrl = () => {
   if (typeof window === 'undefined') {
@@ -26,6 +27,10 @@ export interface SocketEvents {
   'join-room': (data: JoinRoomRequest) => void;
   'leave-room': () => void;
   'start-game': () => void;
+  'start-trivia': () => void;
+  'submit-answer': (data: SubmitAnswerRequest) => void;
+  'next-question': () => void;
+  'question-timeout': () => void;
   'player-ready-status': () => void;
   'player-not-ready-status': () => void;
   'ping': () => void;
@@ -37,6 +42,11 @@ export interface SocketEvents {
   'player-left': (playerId: string) => void;
   'room-updated': (room: Room) => void;
   'game-started': (room: Room) => void;
+  'trivia-started': (data: any) => void;
+  'question-sent': (data: any) => void;
+  'answer-received': (data: any) => void;
+  'question-ended': (data: any) => void;
+  'trivia-ended': (data: any) => void;
   'player-ready': (playerId: string) => void;
   'player-not-ready': (playerId: string) => void;
   'error': (message: string) => void;
@@ -166,6 +176,23 @@ class SocketService {
 
   startGame(): void {
     this.emit('start-game');
+  }
+
+  // Métodos de trivia
+  startTrivia(): void {
+    this.emit('start-trivia');
+  }
+
+  submitAnswer(data: SubmitAnswerRequest): void {
+    this.emit('submit-answer', data);
+  }
+
+  nextQuestion(): void {
+    this.emit('next-question');
+  }
+
+  questionTimeout(): void {
+    this.emit('question-timeout');
   }
 
   markPlayerReady(): void {

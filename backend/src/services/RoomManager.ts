@@ -1,9 +1,12 @@
-import { Room, Player, GameSettings } from '../types/game';
+import { Room, Player, GameSettings, GameState, TriviaQuestion, PlayerScore, SubmitAnswerRequest } from '../types/game';
+import { TriviaService } from './TriviaService';
 
 class RoomManager {
   private rooms: Map<string, Room> = new Map();
   private playerRooms: Map<string, string> = new Map(); // playerId -> roomId
   private roomCodes: Map<string, string> = new Map(); // roomCode -> roomId
+  private triviaQuestions: Map<string, TriviaQuestion[]> = new Map(); // roomId -> questions
+  private playerAnswers: Map<string, Map<string, SubmitAnswerRequest>> = new Map(); // roomId -> playerId -> answer
 
   /**
    * Crea una nueva sala
@@ -98,11 +101,18 @@ class RoomManager {
       existingHost.socketId = socketId;
       existingHost.isOnline = true;
       existingHost.joinedAt = new Date();
+      existingHost.isTV = isTV; // Actualizar el campo isTV también
       room.lastActivity = new Date();
+
+      // Actualizar el currentPlayers basado en jugadores online
+      room.currentPlayers = room.players.filter(p => p.isOnline).length;
+
+      // Asegurarse de que el host en la sala sea el mismo objeto
+      room.host = existingHost;
 
       this.playerRooms.set(existingHost.id, room.id);
 
-      console.log(`🔄 Host ${playerName} se conectó a su sala ${roomCode}`);
+      console.log(`🔄 Host ${playerName} se conectó a su sala ${roomCode} (isTV: ${isTV})`);
       return { room, player: existingHost };
     }
 
@@ -287,6 +297,233 @@ class RoomManager {
       totalPlayers,
       onlinePlayers
     };
+  }
+
+  // ===== MÉTODOS DE TRIVIA =====
+
+  /**
+   * Inicia una trivia en una sala
+   */
+  async startTrivia(roomId: string): Promise<{ room: Room; firstQuestion: TriviaQuestion } | null> {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+
+    // Verificar que la sala no esté ya en modo trivia
+    if (room.gameState === GameState.TRIVIA_ACTIVE || room.gameState === GameState.QUESTION_ACTIVE) {
+      return null;
+    }
+
+    try {
+      // Obtener preguntas de trivia
+      const questions = await TriviaService.getQuestions(room.minigameCount);
+      this.triviaQuestions.set(roomId, questions);
+
+      // Inicializar scores de jugadores
+      const playerScores: PlayerScore[] = room.players
+        .filter(p => p.isOnline && !p.isSpectator && !p.isTV)
+        .map(p => ({
+          playerId: p.id,
+          playerName: p.name,
+          score: 0,
+          correctAnswers: 0,
+          totalAnswers: 0,
+          averageTime: 0
+        }));
+
+      // Actualizar estado de la sala
+      room.gameState = GameState.TRIVIA_ACTIVE;
+      room.scores = playerScores;
+      room.lastActivity = new Date();
+
+      // Inicializar el mapa de respuestas para esta sala
+      this.playerAnswers.set(roomId, new Map());
+
+      // Enviar la primera pregunta
+      const firstQuestion = questions[0];
+      room.currentQuestion = firstQuestion;
+      room.questionStartTime = new Date();
+      room.gameState = GameState.QUESTION_ACTIVE;
+
+      console.log(`🎯 Trivia iniciada en sala ${room.code} con ${questions.length} preguntas`);
+      return { room, firstQuestion };
+    } catch (error) {
+      console.error('❌ Error iniciando trivia:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Procesa la respuesta de un jugador
+   */
+  submitAnswer(roomId: string, playerId: string, answer: SubmitAnswerRequest): { room: Room; isCorrect: boolean; score: number } | null {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.currentQuestion || room.gameState !== GameState.QUESTION_ACTIVE) {
+      return null;
+    }
+
+    // Verificar que la pregunta coincida
+    if (answer.questionId !== room.currentQuestion.id) {
+      return null;
+    }
+
+    // Verificar que el jugador no haya respondido ya
+    const roomAnswers = this.playerAnswers.get(roomId);
+    if (!roomAnswers || roomAnswers.has(playerId)) {
+      return null;
+    }
+
+    // Registrar la respuesta
+    roomAnswers.set(playerId, answer);
+
+    // Verificar si la respuesta es correcta
+    const isCorrect = answer.selectedAnswer === room.currentQuestion.correctAnswer;
+    
+    // Calcular puntaje
+    const score = TriviaService.calculateScore(isCorrect, answer.timeUsed, room.currentQuestion.timeLimit);
+
+    // Actualizar score del jugador
+    const playerScore = room.scores?.find(s => s.playerId === playerId);
+    if (playerScore) {
+      playerScore.score += score;
+      playerScore.totalAnswers++;
+      if (isCorrect) {
+        playerScore.correctAnswers++;
+      }
+      playerScore.lastAnswerTime = answer.timeUsed;
+      
+      // Actualizar tiempo promedio
+      const totalTime = (playerScore.averageTime * (playerScore.totalAnswers - 1)) + answer.timeUsed;
+      playerScore.averageTime = totalTime / playerScore.totalAnswers;
+    }
+
+    room.lastActivity = new Date();
+
+    console.log(`📝 ${playerId} respondió ${isCorrect ? 'correctamente' : 'incorrectamente'} - Puntaje: ${score}`);
+    return { room, isCorrect, score };
+  }
+
+  /**
+   * Finaliza la pregunta actual y pasa a la siguiente
+   */
+  nextQuestion(roomId: string): { room: Room; nextQuestion: TriviaQuestion | null; triviaEnded: boolean } | null {
+    const room = this.rooms.get(roomId);
+    if (!room || room.gameState !== GameState.QUESTION_ACTIVE) {
+      return null;
+    }
+
+    const questions = this.triviaQuestions.get(roomId);
+    if (!questions || !room.currentQuestion) {
+      return null;
+    }
+
+    // Marcar pregunta como terminada
+    room.gameState = GameState.QUESTION_ENDED;
+
+    // Encontrar el índice de la pregunta actual
+    const currentQuestionIndex = questions.findIndex(q => q.id === room.currentQuestion!.id);
+    const nextQuestionIndex = currentQuestionIndex + 1;
+
+    // Verificar si hay más preguntas
+    if (nextQuestionIndex >= questions.length) {
+      // Trivia terminada
+      room.gameState = GameState.TRIVIA_ENDED;
+      room.currentQuestion = undefined;
+      room.questionStartTime = undefined;
+      
+      // Limpiar datos de trivia
+      this.triviaQuestions.delete(roomId);
+      this.playerAnswers.delete(roomId);
+
+      console.log(`🏁 Trivia terminada en sala ${room.code}`);
+      return { room, nextQuestion: null, triviaEnded: true };
+    }
+
+    // Preparar siguiente pregunta
+    const nextQuestion = questions[nextQuestionIndex];
+    room.currentQuestion = nextQuestion;
+    room.questionStartTime = new Date();
+    room.gameState = GameState.QUESTION_ACTIVE;
+
+    // Limpiar respuestas de la pregunta anterior
+    this.playerAnswers.set(roomId, new Map());
+
+    console.log(`➡️ Siguiente pregunta en sala ${room.code}: ${nextQuestionIndex + 1}/${questions.length}`);
+    return { room, nextQuestion, triviaEnded: false };
+  }
+
+  /**
+   * Obtiene el ranking actual de una sala
+   */
+  getRanking(roomId: string): PlayerScore[] | null {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.scores) return null;
+
+    // Ordenar por puntaje descendente, luego por tiempo promedio ascendente
+    return [...room.scores].sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.averageTime - b.averageTime;
+    });
+  }
+
+  /**
+   * Obtiene las respuestas de todos los jugadores para la pregunta actual
+   */
+  getCurrentQuestionAnswers(roomId: string): Map<string, SubmitAnswerRequest> | null {
+    return this.playerAnswers.get(roomId) || null;
+  }
+
+  /**
+   * Verifica si todos los jugadores han respondido la pregunta actual
+   */
+  allPlayersAnswered(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.scores) return false;
+
+    const roomAnswers = this.playerAnswers.get(roomId);
+    if (!roomAnswers) return false;
+
+    const activePlayers = room.scores.length;
+    const answeredPlayers = roomAnswers.size;
+
+    return answeredPlayers >= activePlayers;
+  }
+
+  /**
+   * Obtiene el ganador de la trivia
+   */
+  getTriviaWinner(roomId: string): { winner: Player; finalScores: PlayerScore[] } | null {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.scores) return null;
+
+    const finalScores = this.getRanking(roomId);
+    if (!finalScores || finalScores.length === 0) return null;
+
+    const winnerScore = finalScores[0];
+    const winner = room.players.find(p => p.id === winnerScore.playerId);
+    
+    if (!winner) return null;
+
+    return { winner, finalScores };
+  }
+
+  /**
+   * Reinicia el estado de trivia de una sala
+   */
+  resetTriviaState(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+
+    room.gameState = GameState.WAITING;
+    room.currentQuestion = undefined;
+    room.questionStartTime = undefined;
+    room.scores = undefined;
+    
+    this.triviaQuestions.delete(roomId);
+    this.playerAnswers.delete(roomId);
+
+    console.log(`🔄 Estado de trivia reiniciado en sala ${room.code}`);
   }
 }
 

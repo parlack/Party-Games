@@ -22,6 +22,14 @@ const TVView: React.FC = () => {
     }
   }, [state.currentRoom]);
 
+  // Redirigir a trivia TV cuando se inicie
+  useEffect(() => {
+    if (state.triviaState?.isActive && state.currentRoom?.code) {
+      console.log('🎯 Trivia iniciada, redirigiendo TV a vista trivia...');
+      navigate(`/tv-trivia/${state.currentRoom.code}`);
+    }
+  }, [state.triviaState?.isActive, state.currentRoom?.code, navigate]);
+
   // Verificar si la sala existe y si el usuario actual es TV
   useEffect(() => {
     const checkTVAccess = async () => {
@@ -37,13 +45,25 @@ const TVView: React.FC = () => {
         }
       }
       
-      // Verificar si el usuario actual es TV
-      if (state.currentPlayer && !state.currentPlayer.isTV) {
-        navigate(`/waitingroom/${roomCode}`);
+      // Verificar si el usuario actual es TV - solo si ya tenemos la información completa
+      if (state.currentPlayer && state.currentRoom && !state.isLoading) {
+        console.log('🎯 Verificando acceso TV:', {
+          playerName: state.currentPlayer.name,
+          isTV: state.currentPlayer.isTV,
+          roomCode: state.currentRoom.code
+        });
+        
+        if (!state.currentPlayer.isTV) {
+          console.log('🎯 Usuario no es TV, redirigiendo a sala de espera');
+          navigate(`/waitingroom/${roomCode}`);
+        } else {
+          console.log('🎯 Usuario es TV, permaneciendo en vista TV');
+        }
       }
     };
 
-    const timeout = setTimeout(checkTVAccess, 1000);
+    // Dar más tiempo para que se complete la carga del estado
+    const timeout = setTimeout(checkTVAccess, 2000);
     return () => clearTimeout(timeout);
   }, [state.currentRoom, roomCode, navigate, state.isLoading, state.currentPlayer]);
 

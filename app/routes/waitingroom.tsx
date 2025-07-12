@@ -24,7 +24,7 @@ export const loader = async () => {
 };
 
 const WaitingRoom: React.FC = () => {
-  const { state, getRoomByCode, leaveRoom } = useGame();
+  const { state, getRoomByCode, leaveRoom, startTrivia } = useGame();
   const navigate = useNavigate();
   const { roomCode } = useParams();
   const [copied, setCopied] = useState(false);
@@ -36,6 +36,14 @@ const WaitingRoom: React.FC = () => {
       setRoom(state.currentRoom);
     }
   }, [state.currentRoom]);
+
+  // Redirigir a trivia cuando se inicie
+  useEffect(() => {
+    if (state.triviaState?.isActive && state.currentRoom?.code) {
+      console.log('🎯 Trivia iniciada, redirigiendo...');
+      navigate(`/trivia/${state.currentRoom.code}`);
+    }
+  }, [state.triviaState?.isActive, state.currentRoom?.code, navigate]);
 
   // Si no hay sala en el contexto pero hay roomCode en la URL, verificar si existe
   useEffect(() => {
@@ -134,6 +142,11 @@ const WaitingRoom: React.FC = () => {
   const handleLeaveRoom = () => {
     leaveRoom();
     navigate('/');
+  };
+
+  const handleStartTrivia = () => {
+    console.log('🎯 Iniciando trivia desde waitingroom...');
+    startTrivia();
   };
 
   // Usar la sala encontrada o la sala actual
@@ -268,15 +281,55 @@ const WaitingRoom: React.FC = () => {
                   Se necesitan al menos 2 jugadores para iniciar
                 </Typography>
               </Box>
-              {/* Botón de iniciar juego solo aquí, sin botones extra */}
-              <Button
-                variant="contained"
-                fullWidth
-                disabled
-                sx={{ mt: 2, background: '#23244a', color: '#b3b3ff', fontWeight: 700, fontSize: 18, borderRadius: 2, boxShadow: 'none', '&:hover': { background: '#23244a' } }}
-              >
-                Iniciar Juego
-              </Button>
+              {/* Botón de iniciar trivia solo para el host */}
+              {state.currentPlayer?.isHost && (
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={handleStartTrivia}
+                  disabled={currentRoom.players
+                    .filter((player, index, array) => {
+                      const duplicates = array.filter(p => p.name === player.name);
+                      if (duplicates.length > 1) {
+                        return duplicates.find(p => p.isOnline !== false) === player;
+                      }
+                      return true;
+                    }).length < 1}
+                  sx={{ 
+                    mt: 2, 
+                    background: 'linear-gradient(135deg, #6366f1 60%, #8b5cf6 100%)', 
+                    color: '#fff', 
+                    fontWeight: 700, 
+                    fontSize: 18, 
+                    borderRadius: 2, 
+                    boxShadow: '0 4px 16px 0 rgba(99,102,241,0.3)',
+                    '&:hover': { 
+                      background: 'linear-gradient(135deg, #5b5bd6 60%, #7c3aed 100%)',
+                      boxShadow: '0 6px 20px 0 rgba(99,102,241,0.4)'
+                    },
+                    '&:disabled': {
+                      background: '#23244a',
+                      color: '#b3b3ff'
+                    }
+                  }}
+                >
+                  🎯 Iniciar Trivia
+                </Button>
+              )}
+              {!state.currentPlayer?.isHost && (
+                <Box sx={{ 
+                  mt: 2, 
+                  p: 2, 
+                  background: 'rgba(59,130,246,0.08)', 
+                  borderRadius: 2, 
+                  border: '1px solid #1e3a8a',
+                  textAlign: 'center'
+                }}>
+                  <Typography sx={{ color: '#38bdf8', fontSize: 14, fontWeight: 600 }}>
+                    Esperando a que el anfitrión inicie la trivia...
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </Box>
           {/* Jugadores */}
@@ -302,14 +355,39 @@ const WaitingRoom: React.FC = () => {
                   Jugadores
                 </Typography>
                 <Box sx={{ ml: 1, px: 1.5, py: 0.5, borderRadius: 2, background: 'linear-gradient(90deg, #10b981 60%, #38bdf8 100%)', color: '#fff', fontSize: 13, fontWeight: 600, boxShadow: '0 1px 4px 0 rgba(16,185,129,0.10)' }}>
-                  {currentRoom.players.length} Activos
+                  {currentRoom.players
+                    .filter((player, index, array) => {
+                      const duplicates = array.filter(p => p.name === player.name);
+                      if (duplicates.length > 1) {
+                        return duplicates.find(p => p.isOnline !== false) === player;
+                      }
+                      return true;
+                    }).length} Activos
                 </Box>
                 <Typography sx={{ color: '#b3b3ff', fontSize: 13, ml: 1 }}>
-                  ({currentRoom.players.length}/{currentRoom.maxPlayers})
+                  ({currentRoom.players
+                    .filter((player, index, array) => {
+                      const duplicates = array.filter(p => p.name === player.name);
+                      if (duplicates.length > 1) {
+                        return duplicates.find(p => p.isOnline !== false) === player;
+                      }
+                      return true;
+                    }).length}/{currentRoom.maxPlayers})
                 </Typography>
               </Box>
               <Box sx={{ mt: 2 }}>
-                {currentRoom.players.map((player) => (
+                {currentRoom.players
+                  .filter((player, index, array) => {
+                    // Filtrar jugadores duplicados por nombre
+                    // Si hay múltiples jugadores con el mismo nombre, mantener solo el que está online
+                    const duplicates = array.filter(p => p.name === player.name);
+                    if (duplicates.length > 1) {
+                      // Si hay duplicados, mantener solo el que está online
+                      return duplicates.find(p => p.isOnline !== false) === player;
+                    }
+                    return true;
+                  })
+                  .map((player) => (
                   <Box key={player.id} sx={{
                     display: 'flex', alignItems: 'center', gap: 2, mb: 2, background: 'rgba(99,102,241,0.06)', borderRadius: 2, p: 2, border: '1px solid #353570'
                   }}>

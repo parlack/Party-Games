@@ -42,25 +42,28 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
 
   // Navegar automáticamente cuando se una a una sala exitosamente
   useEffect(() => {
-    if (state.currentRoom && isJoining) {
+    if (state.currentRoom && state.currentPlayer && isJoining) {
       console.log('🎯 Navegando a sala desde join:', state.currentRoom.code);
       console.log('🎯 Estado actual:', { 
         room: state.currentRoom?.code, 
         player: state.currentPlayer?.name,
+        playerIsTV: state.currentPlayer?.isTV,
         isJoining,
-        isTV 
+        localIsTV: isTV 
       });
       setIsJoining(false);
       onClose();
       
-      // Redirigir a la vista TV si el switch está activo
-      if (isTV) {
+      // Redirigir a la vista TV si el jugador se unió como TV (verificar del estado del jugador)
+      if (state.currentPlayer.isTV) {
+        console.log('🎯 Navegando a modo TV');
         navigate(`/tv/${state.currentRoom.code}`);
       } else {
+        console.log('🎯 Navegando a sala de espera');
         navigate(`/waitingroom/${state.currentRoom.code}`);
       }
     }
-  }, [state.currentRoom, isJoining, navigate, onClose, isTV]);
+  }, [state.currentRoom, state.currentPlayer, isJoining, navigate, onClose]);
 
   // Resetear estado de unión si hay error
   useEffect(() => {

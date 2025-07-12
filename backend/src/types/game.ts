@@ -23,6 +23,11 @@ export interface Room {
   host: Player;
   createdAt: Date;
   lastActivity: Date;
+  // Nuevos campos para trivia
+  gameState?: GameState;
+  currentQuestion?: TriviaQuestion;
+  questionStartTime?: Date;
+  scores?: PlayerScore[];
 }
 
 export interface GameSettings {
@@ -52,6 +57,10 @@ export interface SocketEvents {
   'start-game': () => void;
   'player-ready': () => void;
   'player-not-ready': () => void;
+  // Nuevos eventos para trivia
+  'start-trivia': () => void;
+  'submit-answer': (data: SubmitAnswerRequest) => void;
+  'next-question': () => void;
   
   // Servidor -> Cliente
   'room-joined': (room: Room, player: Player) => void;
@@ -63,6 +72,12 @@ export interface SocketEvents {
   'error': (message: string) => void;
   'room-not-found': () => void;
   'room-full': () => void;
+  // Nuevos eventos para trivia
+  'trivia-started': (room: Room) => void;
+  'question-sent': (question: TriviaQuestion, timeLimit: number) => void;
+  'answer-received': (playerId: string, correct: boolean, timeUsed: number) => void;
+  'question-ended': (correctAnswer: string, scores: PlayerScore[]) => void;
+  'trivia-ended': (finalScores: PlayerScore[], winner: Player) => void;
 }
 
 export interface ApiResponse<T = any> {
@@ -75,4 +90,54 @@ export interface ApiResponse<T = any> {
 export interface RoomListResponse {
   rooms: Room[];
   total: number;
+}
+
+// Nuevos tipos para el sistema de trivia
+export interface TriviaQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  category: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  timeLimit: number; // en segundos
+}
+
+export interface PlayerScore {
+  playerId: string;
+  playerName: string;
+  score: number;
+  correctAnswers: number;
+  totalAnswers: number;
+  averageTime: number; // tiempo promedio de respuesta en segundos
+  lastAnswerTime?: number;
+}
+
+export interface SubmitAnswerRequest {
+  questionId: string;
+  selectedAnswer: string;
+  timeUsed: number; // tiempo usado para responder en segundos
+}
+
+export interface OpenTriviaResponse {
+  response_code: number;
+  results: OpenTriviaQuestion[];
+}
+
+export interface OpenTriviaQuestion {
+  category: string;
+  type: 'multiple' | 'boolean';
+  difficulty: 'easy' | 'medium' | 'hard';
+  question: string;
+  correct_answer: string;
+  incorrect_answers: string[];
+}
+
+export enum GameState {
+  WAITING = 'waiting',
+  STARTING = 'starting',
+  TRIVIA_ACTIVE = 'trivia_active',
+  QUESTION_ACTIVE = 'question_active',
+  QUESTION_ENDED = 'question_ended',
+  TRIVIA_ENDED = 'trivia_ended'
 } 

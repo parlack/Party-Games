@@ -1,6 +1,6 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import RoomManager from '../services/RoomManager';
-import { JoinRoomRequest, SocketEvents } from '../types/game';
+import { JoinRoomRequest, SocketEvents, SubmitAnswerRequest, GameState } from '../types/game';
 
 export function setupSocketHandlers(io: SocketIOServer, roomManager: RoomManager) {
   io.on('connection', (socket: Socket) => {
@@ -177,6 +177,169 @@ export function setupSocketHandlers(io: SocketIOServer, roomManager: RoomManager
     // Evento: Ping/Pong para mantener conexión
     socket.on('ping', () => {
       socket.emit('pong');
+    });
+
+    // ===== EVENTOS DE TRIVIA =====
+
+    // Evento: Iniciar trivia
+    socket.on('start-trivia', async () => {
+      try {
+        const playerData = roomManager.getPlayerBySocketId(socket.id);
+        if (!playerData) return;
+
+        const { room, player } = playerData;
+
+        // Solo el host puede iniciar la trivia
+        if (!player.isHost) {
+          socket.emit('error', 'Solo el host puede iniciar la trivia');
+          return;
+        }
+
+        // Verificar que hay jugadores activos
+        const activePlayers = room.players.filter(p => p.isOnline && !p.isSpectator && !p.isTV);
+        if (activePlayers.length < 1) {
+          socket.emit('error', 'Se necesita al menos 1 jugador para iniciar la trivia');
+          return;
+        }
+
+        // Iniciar la trivia
+        const result = await roomManager.startTrivia(room.id);
+        if (!result) {
+          socket.emit('error', 'No se pudo iniciar la trivia');
+          return;
+        }
+
+        const { room: updatedRoom, firstQuestion } = result;
+
+        // Notificar a todos los jugadores que la trivia comenzó
+        io.to(room.code).emit('trivia-started', updatedRoom);
+
+        // Enviar la primera pregunta
+        io.to(room.code).emit('question-sent', firstQuestion, firstQuestion.timeLimit);
+
+        console.log(`🎯 Trivia iniciada en sala ${room.code} por ${player.name}`);
+      } catch (error) {
+        console.error('Error al iniciar trivia:', error);
+        socket.emit('error', 'Error al iniciar la trivia');
+      }
+    });
+
+    // Evento: Enviar respuesta
+    socket.on('submit-answer', (data: SubmitAnswerRequest) => {
+      try {
+        const playerData = roomManager.getPlayerBySocketId(socket.id);
+        if (!playerData) return;
+
+        const { room, player } = playerData;
+
+        // Verificar que el jugador puede responder
+        if (player.isSpectator || player.isTV) {
+          return;
+        }
+
+        // Procesar la respuesta
+        const result = roomManager.submitAnswer(room.id, player.id, data);
+        if (!result) {
+          socket.emit('error', 'No se pudo procesar la respuesta');
+          return;
+        }
+
+        const { room: updatedRoom, isCorrect, score } = result;
+
+        // Notificar al jugador sobre su respuesta
+        socket.emit('answer-received', player.id, isCorrect, data.timeUsed);
+
+        // Notificar a otros jugadores que este jugador ya respondió
+        socket.to(room.code).emit('player-answered', player.id);
+
+        // Verificar si todos los jugadores han respondido
+        if (roomManager.allPlayersAnswered(room.id)) {
+          // Esperar un poco antes de mostrar resultados
+          setTimeout(() => {
+            handleQuestionEnd(room.code, room.id);
+          }, 1000);
+        }
+
+        console.log(`📝 ${player.name} respondió en sala ${room.code}: ${isCorrect ? 'Correcto' : 'Incorrecto'} (+${score} puntos)`);
+      } catch (error) {
+        console.error('Error al procesar respuesta:', error);
+        socket.emit('error', 'Error al procesar la respuesta');
+      }
+    });
+
+    // Evento: Siguiente pregunta (solo host)
+    socket.on('next-question', () => {
+      try {
+        const playerData = roomManager.getPlayerBySocketId(socket.id);
+        if (!playerData) return;
+
+        const { room, player } = playerData;
+
+        // Solo el host puede avanzar manualmente
+        if (!player.isHost) {
+          socket.emit('error', 'Solo el host puede avanzar a la siguiente pregunta');
+          return;
+        }
+
+        handleQuestionEnd(room.code, room.id);
+      } catch (error) {
+        console.error('Error al avanzar pregunta:', error);
+        socket.emit('error', 'Error al avanzar a la siguiente pregunta');
+      }
+    });
+
+    // Función auxiliar para manejar el final de una pregunta
+    function handleQuestionEnd(roomCode: string, roomId: string) {
+      try {
+        const room = roomManager.getRoomById(roomId);
+        if (!room || !room.currentQuestion) return;
+
+        const correctAnswer = room.currentQuestion.correctAnswer;
+        const currentRanking = roomManager.getRanking(roomId);
+
+        // Notificar el final de la pregunta con respuesta correcta y ranking
+        io.to(roomCode).emit('question-ended', correctAnswer, currentRanking || []);
+
+        // Avanzar a la siguiente pregunta después de mostrar resultados
+        setTimeout(() => {
+          const nextResult = roomManager.nextQuestion(roomId);
+          if (!nextResult) return;
+
+          const { room: updatedRoom, nextQuestion, triviaEnded } = nextResult;
+
+          if (triviaEnded) {
+            // Trivia terminada
+            const winnerData = roomManager.getTriviaWinner(roomId);
+            if (winnerData) {
+              io.to(roomCode).emit('trivia-ended', winnerData.finalScores, winnerData.winner);
+            }
+            console.log(`🏁 Trivia terminada en sala ${roomCode}`);
+          } else if (nextQuestion) {
+            // Siguiente pregunta
+            io.to(roomCode).emit('question-sent', nextQuestion, nextQuestion.timeLimit);
+            console.log(`➡️ Siguiente pregunta enviada en sala ${roomCode}`);
+          }
+        }, 3000); // 3 segundos para mostrar resultados
+      } catch (error) {
+        console.error('Error al manejar final de pregunta:', error);
+      }
+    }
+
+    // Auto-avanzar pregunta por tiempo límite
+    socket.on('question-timeout', () => {
+      try {
+        const playerData = roomManager.getPlayerBySocketId(socket.id);
+        if (!playerData) return;
+
+        const { room } = playerData;
+
+        // Solo procesar si es el host quien reporta el timeout
+        if (room.gameState === GameState.QUESTION_ACTIVE) {
+          handleQuestionEnd(room.code, room.id);
+        }
+      } catch (error) {
+        console.error('Error al manejar timeout de pregunta:', error);
+      }
     });
   });
 
