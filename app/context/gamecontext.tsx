@@ -181,6 +181,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isSpectator: frontendPlayer.isSpectator
       });
       
+      // Debug del host
+      console.log('🔍 Debug del host en la sala:', {
+        roomHost: frontendRoom.host?.name,
+        roomHostIsHost: frontendRoom.host?.isHost,
+        currentPlayerIsHost: frontendPlayer.isHost,
+        allPlayers: frontendRoom.players.map(p => ({ name: p.name, isHost: p.isHost, isOnline: p.isOnline }))
+      });
+      
       dispatch({ type: 'SET_ROOM', payload: frontendRoom });
       dispatch({ type: 'SET_PLAYER', payload: frontendPlayer });
       dispatch({ type: 'SET_ERROR', payload: null });

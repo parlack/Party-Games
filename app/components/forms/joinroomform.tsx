@@ -54,16 +54,16 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       setIsJoining(false);
       onClose();
       
-      // Redirigir a la vista TV si el jugador se unió como TV (verificar del estado del jugador)
-      if (state.currentPlayer.isTV) {
-        console.log('🎯 Navegando a modo TV');
+      // Si se seleccionó modo TV localmente, ir a vista TV independientemente del estado del jugador
+      if (isTV) {
+        console.log('🎯 Navegando a modo TV (forzado por selección local)');
         navigate(`/tv/${state.currentRoom.code}`);
       } else {
         console.log('🎯 Navegando a sala de espera');
         navigate(`/waitingroom/${state.currentRoom.code}`);
       }
     }
-  }, [state.currentRoom, state.currentPlayer, isJoining, navigate, onClose]);
+  }, [state.currentRoom, state.currentPlayer, isJoining, navigate, onClose, isTV]);
 
   // Resetear estado de unión si hay error
   useEffect(() => {
@@ -105,11 +105,12 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Si es modo TV, no necesita nombre, se une como espectador
+    // Si es modo TV, se une como espectador TV (no aparece en lista de jugadores)
     if (isTV && roomCode.trim()) {
       setIsJoining(true);
       try {
-        await joinRoom(roomCode.trim().toUpperCase(), 'TV', true, true); // isSpectator=true, isTV=true
+        // Para modo TV: isSpectator=true, isTV=true, nombre="TV-Display"
+        await joinRoom(roomCode.trim().toUpperCase(), 'TV-Display', true, true);
         // La navegación se manejará en el useEffect cuando se una exitosamente
       } catch (error) {
         console.error('Error uniéndose a sala en modo TV:', error);

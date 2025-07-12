@@ -289,6 +289,12 @@ const WaitingRoom: React.FC = () => {
                   onClick={handleStartTrivia}
                   disabled={currentRoom.players
                     .filter((player, index, array) => {
+                      // Filtrar espectadores TV
+                      if (player.isTV || player.isSpectator) {
+                        return false;
+                      }
+                      
+                      // Filtrar jugadores duplicados por nombre
                       const duplicates = array.filter(p => p.name === player.name);
                       if (duplicates.length > 1) {
                         return duplicates.find(p => p.isOnline !== false) === player;
@@ -357,6 +363,12 @@ const WaitingRoom: React.FC = () => {
                 <Box sx={{ ml: 1, px: 1.5, py: 0.5, borderRadius: 2, background: 'linear-gradient(90deg, #10b981 60%, #38bdf8 100%)', color: '#fff', fontSize: 13, fontWeight: 600, boxShadow: '0 1px 4px 0 rgba(16,185,129,0.10)' }}>
                   {currentRoom.players
                     .filter((player, index, array) => {
+                      // Filtrar espectadores TV
+                      if (player.isTV || player.isSpectator) {
+                        return false;
+                      }
+                      
+                      // Filtrar jugadores duplicados por nombre
                       const duplicates = array.filter(p => p.name === player.name);
                       if (duplicates.length > 1) {
                         return duplicates.find(p => p.isOnline !== false) === player;
@@ -367,6 +379,12 @@ const WaitingRoom: React.FC = () => {
                 <Typography sx={{ color: '#b3b3ff', fontSize: 13, ml: 1 }}>
                   ({currentRoom.players
                     .filter((player, index, array) => {
+                      // Filtrar espectadores TV
+                      if (player.isTV || player.isSpectator) {
+                        return false;
+                      }
+                      
+                      // Filtrar jugadores duplicados por nombre
                       const duplicates = array.filter(p => p.name === player.name);
                       if (duplicates.length > 1) {
                         return duplicates.find(p => p.isOnline !== false) === player;
@@ -378,6 +396,11 @@ const WaitingRoom: React.FC = () => {
               <Box sx={{ mt: 2 }}>
                 {currentRoom.players
                   .filter((player, index, array) => {
+                    // Filtrar espectadores TV
+                    if (player.isTV || player.isSpectator) {
+                      return false;
+                    }
+                    
                     // Filtrar jugadores duplicados por nombre
                     // Si hay múltiples jugadores con el mismo nombre, mantener solo el que está online
                     const duplicates = array.filter(p => p.name === player.name);
