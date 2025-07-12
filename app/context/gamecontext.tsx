@@ -178,6 +178,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_ERROR', payload: null });
       
       console.log('✅ Unido a la sala:', frontendRoom.code);
+      console.log('🎯 DEBUG - Datos del jugador:', {
+        name: frontendPlayer.name,
+        isHost: frontendPlayer.isHost,
+        isTV: frontendPlayer.isTV,
+        id: frontendPlayer.id
+      });
+      console.log('🎯 DEBUG - Datos de la sala:', {
+        code: frontendRoom.code,
+        host: frontendRoom.host.name,
+        hostIsTV: frontendRoom.host.isTV,
+        hostId: frontendRoom.host.id
+      });
     });
 
     socketService.on('room-left', () => {
@@ -346,7 +358,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socketService.joinRoom({
         roomCode: response.data.code,
         playerName: settings.hostName || 'Host',
-        isSpectator: false
+        isSpectator: false,
+        isTV: settings.isTV || false
       });
 
       console.log('🏠 Sala creada:', response.data.code);
