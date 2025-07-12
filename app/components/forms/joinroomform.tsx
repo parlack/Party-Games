@@ -104,10 +104,22 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (playerName.trim() && roomCode.trim()) {
+    
+    // Si es modo TV, no necesita nombre, se une como espectador
+    if (isTV && roomCode.trim()) {
       setIsJoining(true);
       try {
-        await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), false, isTV);
+        await joinRoom(roomCode.trim().toUpperCase(), 'TV', true, true); // isSpectator=true, isTV=true
+        // La navegación se manejará en el useEffect cuando se una exitosamente
+      } catch (error) {
+        console.error('Error uniéndose a sala en modo TV:', error);
+        setIsJoining(false);
+      }
+    } else if (!isTV && playerName.trim() && roomCode.trim()) {
+      // Modo normal, requiere nombre
+      setIsJoining(true);
+      try {
+        await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), false, false);
         // La navegación se manejará en el useEffect cuando se una exitosamente
       } catch (error) {
         console.error('Error uniéndose a sala:', error);
@@ -188,7 +200,8 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder={t.namePlaceholder}
                 fullWidth
-                required
+                required={!isTV} // Solo requerido si no es modo TV
+                disabled={isTV} // Deshabilitado en modo TV
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -200,9 +213,27 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
                   '& .MuiOutlinedInput-root': {
                     fontSize: '1.1rem',
                     py: 0.5,
+                    opacity: isTV ? 0.5 : 1, // Reducir opacidad en modo TV
                   },
                 }}
               />
+
+              {isTV && (
+                <Box sx={{ 
+                  p: 2, 
+                  backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                  borderRadius: '12px',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}>
+                  <Tv size={20} color="#8b5cf6" />
+                  <Typography variant="body2" sx={{ color: '#8b5cf6', fontWeight: 500 }}>
+                    📺 Modo TV: Te unirás como espectador para mostrar la sala en pantalla grande
+                  </Typography>
+                </Box>
+              )}
 
               <TextField
                 label={t.roomCode}
@@ -305,11 +336,11 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
           <Button
             type="submit"
             variant="contained"
-            disabled={state.isLoading || !playerName.trim() || !roomCode.trim()}
+            disabled={state.isLoading || (!isTV && !playerName.trim()) || !roomCode.trim()}
             startIcon={state.isLoading ? <CircularProgress size={20} /> : <Users size={20} />}
             sx={{ px: 4, flex: 1 }}
           >
-            {t.join}
+            {isTV ? '📺 Unirse como TV' : t.join}
           </Button>
         </DialogActions>
       </form>

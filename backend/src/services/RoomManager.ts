@@ -102,6 +102,7 @@ class RoomManager {
       existingHost.isOnline = true;
       existingHost.joinedAt = new Date();
       existingHost.isTV = isTV; // Actualizar el campo isTV también
+      existingHost.isSpectator = isSpectator; // Actualizar también isSpectator
       room.lastActivity = new Date();
 
       // Actualizar el currentPlayers basado en jugadores online
@@ -112,13 +113,14 @@ class RoomManager {
 
       this.playerRooms.set(existingHost.id, room.id);
 
-      console.log(`🔄 Host ${playerName} se conectó a su sala ${roomCode} (isTV: ${isTV})`);
+      console.log(`🔄 Host ${playerName} se conectó a su sala ${roomCode} (isTV: ${isTV}, isSpectator: ${isSpectator})`);
       return { room, player: existingHost };
     }
 
-    // Verificar si la sala está llena (no contar jugadores offline)
-    const onlinePlayers = room.players.filter(p => p.isOnline).length;
-    if (onlinePlayers >= room.maxPlayers) {
+    // Verificar si la sala está llena (no contar jugadores offline o espectadores)
+    const onlinePlayers = room.players.filter(p => p.isOnline && !p.isSpectator).length;
+    if (onlinePlayers >= room.maxPlayers && !isSpectator) {
+      console.log(`❌ Sala ${roomCode} está llena (${onlinePlayers}/${room.maxPlayers})`);
       return null;
     }
 
@@ -134,12 +136,13 @@ class RoomManager {
     };
 
     room.players.push(player);
-    // Solo incrementar currentPlayers si es un jugador realmente nuevo
+    // Solo incrementar currentPlayers si es un jugador realmente nuevo y online
     room.currentPlayers = room.players.filter(p => p.isOnline).length;
     room.lastActivity = new Date();
 
     this.playerRooms.set(player.id, room.id);
 
+    console.log(`✅ Jugador ${playerName} se unió a sala ${roomCode} (isTV: ${isTV}, isSpectator: ${isSpectator})`);
     return { room, player };
   }
 
