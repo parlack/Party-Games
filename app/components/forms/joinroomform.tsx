@@ -14,7 +14,7 @@ import {
   InputAdornment,
   Fade,
 } from '@mui/material';
-import { Users, Eye, User, Hash, Rocket } from 'lucide-react';
+import { Users, Eye, User, Hash, Rocket, Tv } from 'lucide-react';
 import { useGame } from '../../context/gamecontext';
 import { useNavigate } from 'react-router';
 
@@ -30,6 +30,7 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isSpectator, setIsSpectator] = useState(false);
+  const [isTV, setIsTV] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
   // Auto-rellenar código cuando se proporciona
@@ -51,9 +52,15 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       });
       setIsJoining(false);
       onClose();
-      navigate(`/waitingroom/${state.currentRoom.code}`);
+      
+      // Redirigir a la vista TV si se unió como TV
+      if (state.currentPlayer?.isTV) {
+        navigate(`/tv/${state.currentRoom.code}`);
+      } else {
+        navigate(`/waitingroom/${state.currentRoom.code}`);
+      }
     }
-  }, [state.currentRoom, isJoining, navigate, onClose]);
+  }, [state.currentRoom, isJoining, navigate, onClose, state.currentPlayer]);
 
   // Resetear estado de unión si hay error
   useEffect(() => {
@@ -70,11 +77,13 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       playerName: 'Nombre de Jugador',
       roomCode: 'Código de Sala',
       spectator: 'Solo mirar (espectador)',
+      tvMode: 'Modo TV',
       join: 'Unirse',
       cancel: 'Cancelar',
       namePlaceholder: 'Ingresa tu nombre...',
       codePlaceholder: 'Ej: ABC123',
       spectatorDesc: 'Podrás ver la partida sin participar',
+      tvDesc: 'Mostrar códigos QR y pantalla compartida',
     },
     en: {
       title: 'Join a Room',
@@ -82,11 +91,13 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
       playerName: 'Player Name',
       roomCode: 'Room Code',
       spectator: 'Watch only (spectator)',
+      tvMode: 'TV Mode',
       join: 'Join',
       cancel: 'Cancel',
       namePlaceholder: 'Enter your name...',
       codePlaceholder: 'Ex: ABC123',
       spectatorDesc: 'You can watch the game without participating',
+      tvDesc: 'Show QR codes and shared screen',
     },
   };
 
@@ -97,7 +108,7 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
     if (playerName.trim() && roomCode.trim()) {
       setIsJoining(true);
       try {
-        await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator);
+        await joinRoom(roomCode.trim().toUpperCase(), playerName.trim(), isSpectator, isTV);
         // La navegación se manejará en el useEffect cuando se una exitosamente
       } catch (error) {
         console.error('Error uniéndose a sala:', error);
@@ -219,41 +230,80 @@ export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ open, onClose, prefi
                 }}
               />
 
-              <Box sx={{ 
-                p: 3, 
-                backgroundColor: 'rgba(6, 182, 212, 0.1)', 
-                borderRadius: '16px',
-                border: '1px solid rgba(6, 182, 212, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2
-              }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={isSpectator}
-                      onChange={(e) => setIsSpectator(e.target.checked)}
-                      icon={<Eye size={20} />}
-                      checkedIcon={<Eye size={20} />}
-                      sx={{
-                        color: '#06b6d4',
-                        '&.Mui-checked': {
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ 
+                  p: 3, 
+                  backgroundColor: 'rgba(6, 182, 212, 0.1)', 
+                  borderRadius: '16px',
+                  border: '1px solid rgba(6, 182, 212, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={isSpectator}
+                        onChange={(e) => setIsSpectator(e.target.checked)}
+                        icon={<Eye size={20} />}
+                        checkedIcon={<Eye size={20} />}
+                        sx={{
                           color: '#06b6d4',
-                        },
-                      }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography sx={{ fontWeight: 600, color: '#06b6d4' }}>
-                        {t.spectator}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {t.spectatorDesc}
-                      </Typography>
-                    </Box>
-                  }
-                />
+                          '&.Mui-checked': {
+                            color: '#06b6d4',
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, color: '#06b6d4' }}>
+                          {t.spectator}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {t.spectatorDesc}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+
+                <Box sx={{ 
+                  p: 3, 
+                  backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                  borderRadius: '16px',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2
+                }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={isTV}
+                        onChange={(e) => setIsTV(e.target.checked)}
+                        icon={<Tv size={20} />}
+                        checkedIcon={<Tv size={20} />}
+                        sx={{
+                          color: '#8b5cf6',
+                          '&.Mui-checked': {
+                            color: '#8b5cf6',
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, color: '#8b5cf6' }}>
+                          {t.tvMode}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {t.tvDesc}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
               </Box>
 
               {state.error && (

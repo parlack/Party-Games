@@ -6,7 +6,7 @@ import type { Room as BackendRoom, Player as BackendPlayer } from '../services/a
 
 interface GameContextType {
   state: GameState;
-  joinRoom: (code: string, playerName: string, isSpectator?: boolean) => Promise<void>;
+  joinRoom: (code: string, playerName: string, isSpectator?: boolean, isTV?: boolean) => Promise<void>;
   createRoom: (settings: any) => Promise<void>;
   leaveRoom: () => void;
   startGame: () => void;
@@ -180,7 +180,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const joinRoom = async (code: string, playerName: string, isSpectator = false) => {
+  const joinRoom = async (code: string, playerName: string, isSpectator = false, isTV = false) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
@@ -196,7 +196,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socketService.joinRoom({
         roomCode: code.toUpperCase(),
         playerName,
-        isSpectator
+        isSpectator,
+        isTV
       });
 
       // El estado se actualizará cuando llegue el evento 'room-joined'

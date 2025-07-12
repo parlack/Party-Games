@@ -9,7 +9,7 @@ export function setupSocketHandlers(io: SocketIOServer, roomManager: RoomManager
     // Evento: Unirse a una sala
     socket.on('join-room', (data: JoinRoomRequest) => {
       try {
-        const { roomCode, playerName, isSpectator = false } = data;
+        const { roomCode, playerName, isSpectator = false, isTV = false } = data;
         
         console.log(`👤 ${playerName} intentando unirse a sala ${roomCode}`);
 
@@ -27,7 +27,7 @@ export function setupSocketHandlers(io: SocketIOServer, roomManager: RoomManager
         }
 
         // Añadir jugador a la sala
-        const result = roomManager.addPlayerToRoom(roomCode, playerName, socket.id, isSpectator);
+        const result = roomManager.addPlayerToRoom(roomCode, playerName, socket.id, isSpectator, isTV);
         if (!result) {
           socket.emit('error', 'No se pudo unir a la sala');
           return;

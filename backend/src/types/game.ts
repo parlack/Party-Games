@@ -3,6 +3,7 @@ export interface Player {
   name: string;
   isHost: boolean;
   isSpectator: boolean;
+  isTV?: boolean; // Nuevo campo para identificar dispositivos TV
   avatar?: string;
   joinedAt: Date;
   socketId: string;
@@ -41,6 +42,7 @@ export interface JoinRoomRequest {
   roomCode: string;
   playerName: string;
   isSpectator?: boolean;
+  isTV?: boolean; // Nuevo campo para unirse como TV
 }
 
 export interface SocketEvents {

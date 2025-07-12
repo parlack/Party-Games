@@ -28,7 +28,7 @@ class RoomManager {
       name: settings.name,
       code: roomCode,
       maxPlayers: settings.maxPlayers,
-      currentPlayers: 1,
+      currentPlayers: 0, // Host no está online hasta que se conecte
       minigameCount: settings.minigameCount,
       isRandomGames: settings.isRandomGames,
       isActive: false,
@@ -81,7 +81,7 @@ class RoomManager {
   /**
    * Añade un jugador a una sala
    */
-  addPlayerToRoom(roomCode: string, playerName: string, socketId: string, isSpectator: boolean = false): { room: Room; player: Player } | null {
+  addPlayerToRoom(roomCode: string, playerName: string, socketId: string, isSpectator: boolean = false, isTV: boolean = false): { room: Room; player: Player } | null {
     const room = this.getRoomByCode(roomCode);
     if (!room) return null;
 
@@ -106,8 +106,9 @@ class RoomManager {
       return { room, player: existingHost };
     }
 
-    // Verificar si la sala está llena
-    if (room.currentPlayers >= room.maxPlayers) {
+    // Verificar si la sala está llena (no contar jugadores offline)
+    const onlinePlayers = room.players.filter(p => p.isOnline).length;
+    if (onlinePlayers >= room.maxPlayers) {
       return null;
     }
 
@@ -116,13 +117,15 @@ class RoomManager {
       name: playerName,
       isHost: false,
       isSpectator,
+      isTV,
       joinedAt: new Date(),
       socketId,
       isOnline: true
     };
 
     room.players.push(player);
-    room.currentPlayers++;
+    // Solo incrementar currentPlayers si es un jugador realmente nuevo
+    room.currentPlayers = room.players.filter(p => p.isOnline).length;
     room.lastActivity = new Date();
 
     this.playerRooms.set(player.id, room.id);
@@ -147,7 +150,8 @@ class RoomManager {
     const wasHost = player.isHost;
 
     room.players.splice(playerIndex, 1);
-    room.currentPlayers--;
+    // Actualizar currentPlayers basado en jugadores online
+    room.currentPlayers = room.players.filter(p => p.isOnline).length;
     room.lastActivity = new Date();
 
     this.playerRooms.delete(playerId);

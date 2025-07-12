@@ -3,8 +3,10 @@ export interface Player {
   name: string;
   isHost: boolean;
   isSpectator: boolean;
+  isTV?: boolean; // Nuevo campo para identificar dispositivos TV
   avatar?: string;
   joinedAt: Date;
+  isOnline?: boolean; // Campo para estado de conexión
 }
 
 export interface Room {

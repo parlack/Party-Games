@@ -18,6 +18,7 @@ export interface JoinRoomRequest {
   roomCode: string;
   playerName: string;
   isSpectator?: boolean;
+  isTV?: boolean;
 }
 
 export interface SocketEvents {
